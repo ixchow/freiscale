@@ -84,6 +84,40 @@ void FreiScale::draw() {
 
 	draw_panel(library_box, glm::u8vec4(0x88, 0x00, 0x88, 0xff));
 	draw_panel(song_box, glm::u8vec4(0xff, 0xff, 0x00, 0xff));
+
+	{ //song box grid:
+
+		DrawLines draw(glm::mat4(
+			2.0f / kit::display.window_size.x, 0.0f, 0.0f, 0.0f,
+			0.0f, 2.0f / kit::display.window_size.y, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			-1.0f, -1.0f, 0.0f, 1.0f
+		));
+		
+		{ //pitch scale grid:
+			int32_t major = 10;
+			int32_t min = int32_t(std::ceil((song_center.p - song_radius.p) * major));
+			int32_t max = int32_t(std::floor((song_center.p + song_radius.p) * major));
+
+			for (int32_t p = min; p <= max; ++p) {
+				float y = ((p / float(major)) - song_center.p + song_radius.p) / (2.0f * song_radius.p) * (song_box.max.y - song_box.min.y) + song_box.min.y;
+				draw.draw(glm::vec2(song_box.min.x, y), glm::vec2(song_box.max.x, y), 
+					(p % major == 0 ? glm::u8vec4(0x88, 0x88, 0x88, 0xff) : glm::u8vec4(0x44, 0x44, 0x44, 0xff)) );
+			}
+		}
+
+		{ //time grid:
+			int32_t major = 4;
+			int32_t min = int32_t(std::ceil((song_center.t - song_radius.t) * major));
+			int32_t max = int32_t(std::floor((song_center.t + song_radius.t) * major));
+
+			for (int32_t t = min; t <= max; ++t) {
+				float x = ((t / float(major)) - song_center.t + song_radius.t) / (2.0f * song_radius.t) * (song_box.max.x - song_box.min.x) + song_box.min.x;
+				draw.draw(glm::vec2(x, song_box.min.y), glm::vec2(x, song_box.max.y), 
+					(t % major == 0 ? glm::u8vec4(0x88, 0x00, 0x88, 0xff) : glm::u8vec4(0x44, 0x00, 0x44, 0xff)) );
+			}
+		}
+	}
 }
 
 void FreiScale::handle_event(SDL_Event const &evt) {
