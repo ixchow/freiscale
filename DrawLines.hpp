@@ -32,9 +32,21 @@ struct DrawLines {
 	void draw_text(std::string const &text,
 		glm::vec3 const &anchor,
 		glm::vec3 const &x = glm::vec3(1.0f, 0.0f, 0.0f),
-		glm::vec3 const &y = glm::vec3(0.0f, 1.0f, 1.0f),
+		glm::vec3 const &y = glm::vec3(0.0f, 1.0f, 0.0f),
 		glm::u8vec4 const &color = glm::u8vec4(0xff),
 		glm::vec3 *anchor_out = nullptr);
+
+	void draw_text(std::string const &text,
+		glm::vec2 const &anchor,
+		glm::vec2 const &x = glm::vec2(1.0f, 0.0f),
+		glm::vec2 const &y = glm::vec2(0.0f, 1.0f),
+		glm::u8vec4 const &color = glm::u8vec4(0xff),
+		glm::vec2 *anchor_out = nullptr) {
+		glm::vec3 temp_anchor_out;
+		draw_text(text, glm::vec3(anchor, 0.0f), glm::vec3(x, 0.0f), glm::vec3(y, 0.0f), color, &temp_anchor_out);
+		if (anchor_out) *anchor_out = glm::vec2(temp_anchor_out);
+	}
+
 
 	//Finish drawing (push attribs to GPU):
 	~DrawLines();

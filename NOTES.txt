@@ -37,3 +37,12 @@ Explicit integration:
 
 d / dx ( 2^{ax + b} )
  = log(2) (ax + b) 2^{ax + b}
+
+----
+
+TODOs:
+
+ - sample library read directories + files
+ - sample -> composition
+ - play composition
+ - (analysis)

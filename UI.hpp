@@ -23,6 +23,9 @@ public:
 	glm::vec2 center() const {
 		return 0.5f * (max + min);
 	}
+	bool contains(glm::vec2 const &pt) const {
+		return (min.x <= pt.x && pt.x < max.x && min.y <= pt.y && pt.y < max.y);
+	}
 
 	std::function< void(FingerID, glm::vec2) > touch_down;
 	std::function< void(FingerID, glm::vec2, glm::vec2) > touch_moved;

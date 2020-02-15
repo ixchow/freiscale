@@ -1,10 +1,13 @@
 #include "FreiScale.hpp"
 
 #include "DrawLines.hpp"
+#include "Output.hpp"
 
 #include <SDL_events.h>
 
-FreiScale::FreiScale() {
+#include <iostream>
+
+FreiScale::FreiScale(std::string const &library_path) : library(library_path) {
 	ui.add_box(&library_box);
 	ui.add_box(&song_box);
 
@@ -22,6 +25,7 @@ void FreiScale::resized() {
 }
 
 void FreiScale::update(float elapsed) {
+	update_hovered();
 }
 
 void FreiScale::draw() {
@@ -118,12 +122,139 @@ void FreiScale::draw() {
 			}
 		}
 	}
+
+	{ //library list:
+		DrawLines draw(glm::mat4(
+			2.0f / kit::display.window_size.x, 0.0f, 0.0f, 0.0f,
+			0.0f, 2.0f / kit::display.window_size.y, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			-1.0f, -1.0f, 0.0f, 1.0f
+		));
+
+		uint32_t item = 0;
+
+		library_folder_boxes.clear();
+		library_sound_boxes.clear();
+
+		auto draw_item = [&draw,this](uint32_t item, uint32_t depth, std::string const &text, bool highlight, UIBox *box) {
+			const float Height = 16.0f;
+			const float Margin = 2.0f;
+			const float Indent = 5.0f;
+
+			float y = library_box.max.y - (item + 1 - library_top) * (Height + Margin);
+			float x = library_box.min.x + depth * Indent;
+
+			draw.draw_text(text, glm::vec2(x,y), Height * glm::vec2(1.0f, 0.0f), Height * glm::vec2(0.0f, 1.0f),
+				(highlight ? glm::u8vec4(0xff, 0xff, 0xff, 0xff) : glm::u8vec4(0x88, 0x88, 0x77, 0xff) )
+				);
+
+			if (box) {
+				box->min.x = library_box.min.x;
+				box->max.x = library_box.max.x;
+				box->min.y = y - 0.5f * Margin;
+				box->max.y = y + Height + 0.5f * Margin;
+			}
+		};
+
+		std::function< void(uint32_t, Folder const &) > draw_folder;
+		draw_folder = [&](uint32_t depth, Folder const &folder) {
+			for (auto &[name, sub] : folder.folders) {
+				//draw name...
+				std::string draw_name;
+				if (sub.state == Folder::Collapsed) {
+					draw_name = "> " + name;
+				} else if (sub.state == Folder::Expanded) {
+					draw_name = "v " + name;
+				} else {
+					draw_name = "! " + name;
+				}
+
+				UIBox box;
+				draw_item(item, depth, draw_name, (&sub == hovered.library_folder), &box);
+				library_folder_boxes.emplace_back(box, &sub);
+
+				++item;
+				if (sub.state == Folder::Expanded) {
+					draw_folder(depth + 1, sub);	
+				}
+			}
+			for (auto &[name, sound] : folder.sounds) {
+				UIBox box;
+				draw_item(item, depth, name, (&sound == hovered.library_sound), &box);
+				library_sound_boxes.emplace_back(box, &sound);
+				++item;
+			}
+		};
+
+		draw_folder(0, library.root);
+
+	}
 }
 
 void FreiScale::handle_event(SDL_Event const &evt) {
+	if (action) {
+		action->handle_event(evt);
+		return;
+	}
 	if (evt.type == SDL_MOUSEMOTION) {
+		mouse = glm::vec2( evt.motion.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
 	}
 	if (evt.type == SDL_MOUSEBUTTONDOWN) {
+		mouse = glm::vec2( evt.button.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
+		update_hovered();
+		if (hovered.library_sound) {
+			if (evt.button.button == SDL_BUTTON_LEFT) {
+				std::cout << "~~~Select Sound!~~~" << std::endl;
+			} else if (evt.button.button == SDL_BUTTON_RIGHT) {
+				std::cout << "~~~Play Sound!~~~" << std::endl;
+				std::vector< Output::Sample > preview;
+				preview.reserve(hovered.library_sound->size());
+				for (auto s : *hovered.library_sound) {
+					Output::Sample o;
+					o.l = s;
+					o.r = s;
+					preview.emplace_back(o);
+				}
+				Output::lock();
+				Output::playing_data = preview;
+				Output::playing_position = 0;
+				Output::unlock();
+			}
+		}
+	}
+	if (evt.type == SDL_MOUSEWHEEL) {
+		if (library_box.contains(mouse)) {
+			library_top -= evt.wheel.y;
+			library_top = std::max(0.0f, library_top);
+		}
+	}
+	if (evt.type == SDL_KEYDOWN) {
+		if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+			Output::lock();
+			if (Output::playing_position < Output::playing_data.size()) {
+				std::cout << "Halting Playback." << std::endl;
+				Output::playing_position = Output::playing_data.size();
+			}
+			Output::unlock();
+		}
 	}
 }
 
+
+void FreiScale::update_hovered() {
+	hovered.clear();
+
+	if (library_box.contains(mouse)) {
+		for (auto const &[box, folder] : library_folder_boxes) {
+			if (box.contains(mouse)) {
+				hovered.library_folder = folder;
+			}
+		}
+		for (auto const &[box, sound] : library_sound_boxes) {
+			if (box.contains(mouse)) {
+				hovered.library_sound = sound;
+			}
+		}
+	}
+
+}

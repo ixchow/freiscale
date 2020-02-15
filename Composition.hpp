@@ -4,6 +4,7 @@
 #include <list>
 #include <cstdint>
 #include <cmath>
+#include <string>
 
 //sample rate:
 const uint32_t SampleRate = 48000;
@@ -23,6 +24,9 @@ struct TimeLog2Hz {
 //Sounds are lists of Samples @ (by default) SampleRate:
 struct Sound : std::vector< Sample > {
 	//TODO: autocorrelation info (Log2Hz vs time curves for vis/snapping)
+
+	static Sound load(std::string const &path); //throws on error
+	static Sound from_samples(Sample const *begin, Sample const *end);
 };
 
 //Trigger a Sound at a given time/pitch:

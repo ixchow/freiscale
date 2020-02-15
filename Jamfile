@@ -6,6 +6,8 @@ SubInclude TOP kit ;
 MySubDir TOP ;
 
 local NAMES =
+	Sound.cpp
+	Library.cpp
 	FreiScale.cpp
 	init.cpp
 	Output.cpp
