@@ -10,7 +10,7 @@
 kit::Config kit_config() {
 	kit::Config config;
 	config.size = glm::uvec2(1280, 720);
-	config.title = "freiscale semicomposer";
+	config.title = "FreiScale SemiComposer 2";
 
 	return config;
 }

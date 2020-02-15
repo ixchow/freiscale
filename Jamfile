@@ -19,4 +19,4 @@ local NAMES =
 
 MyObjects $(NAMES) ;
 
-MyMainFromObjects kit_skel : $(NAMES:S=$(SUFOBJ)) $(KIT_OBJECTS) ;
+MyMainFromObjects fs2 : $(NAMES:S=$(SUFOBJ)) $(KIT_OBJECTS) ;

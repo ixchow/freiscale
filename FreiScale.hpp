@@ -17,9 +17,10 @@ struct FreiScale : kit::Mode {
 	std::unique_ptr< Composition > composition;
 
 	//UI state:
+	//NOTE: ui handled in layout pixels
 	UI ui;
 	UIBox library_box;
-	float library_top = 0.0f;
+	float library_top = 0.0f; //top, in terms of item heights
 
 	UIBox song_box;
 	TimeLog2Hz song_center = TimeLog2Hz(0.0f, 0.0f);

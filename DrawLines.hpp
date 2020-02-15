@@ -20,6 +20,9 @@ struct DrawLines {
 
 	//draw a single line from a to b (in world space):
 	void draw(glm::vec3 const &a, glm::vec3 const &b, glm::u8vec4 const &color = glm::u8vec4(0xff));
+	void draw(glm::vec2 const &a, glm::vec2 const &b, glm::u8vec4 const &color = glm::u8vec4(0xff)) {
+		draw(glm::vec3(a, 0.0f), glm::vec3(b, 0.0f), color);
+	}
 
 	//draw a wireframe box corresponding to the [-1,1]^3 cube transformed by mat:
 	void draw_box(glm::mat4x3 const &mat, glm::u8vec4 const &color = glm::u8vec4(0xff));
