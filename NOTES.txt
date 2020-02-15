@@ -1,0 +1,39 @@
+Big ideas:
+ - samples get mixed in 8.24 fixed point (maybe?) @ 48kHz
+ - samples get arranged in log2hz vs time space
+ - samples can follow a curve in terms of speed vs time
+ - frequency 
+
+
+time: integer sample offset @ 48000 kHz, float would work
+
+log2hz: integer 8.24 would work, float would be fine
+
+sample: 8.24 would work, float [might] be fine
+
+
+Usage:
+
+- samples populate in left pane, click to preview/stop
+- drag samples to main grid area, snap to time increments
+- select several samples => block
+- create reference block and snap to next measure
+- CTRL+click / ALT+click to set loop bounds
+- SPACE to play
+- click to set play position (?)
+
+
+
+
+Explicit integration:
+
+\int_0^y 2^{ax + b} dx
+
+2^{ax + b}
+ = 2^b * (2^a)^x
+ = 2^b * e^(log(2^a)x)
+
+ 2^b * e^(log(2^a)x) / log(2^a) <--- THIS
+
+d / dx ( 2^{ax + b} )
+ = log(2) (ax + b) 2^{ax + b}
