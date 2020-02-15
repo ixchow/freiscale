@@ -1,0 +1,22 @@
+KIT_RAW_SDL_EVENTS = 1 ;
+
+SubDir TOP ;
+SubInclude TOP kit ;
+
+MySubDir TOP ;
+
+local NAMES =
+	FreiScale.cpp
+	init.cpp
+	Output.cpp
+	Composition.cpp
+	UI.cpp
+	DrawLines.cpp
+	ColorProgram.cpp
+	PathFont.cpp
+	PathFont-font.cpp
+;
+
+MyObjects $(NAMES) ;
+
+MyMainFromObjects kit_skel : $(NAMES:S=$(SUFOBJ)) $(KIT_OBJECTS) ;
