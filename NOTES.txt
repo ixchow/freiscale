@@ -42,6 +42,7 @@ d / dx ( 2^{ax + b} )
 
 TODOs:
 
- - trigger steps
+ - trigger step hovering / editing
+ - trigger steps -> absolute? probably simpler to deal with in general
  - load/save
  - (analysis)

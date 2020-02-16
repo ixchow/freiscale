@@ -347,7 +347,7 @@ struct MoveTriggerAction : public Action {
 };
 
 struct MoveStepAction : public Action {
-	MoveStepAction(FreiScale &fs_, Trigger &t_, uint32_t step_) : fs(fs_), t(t_), step(step_), reference(fs.get_song_position(fs.mouse)) {
+	MoveStepAction(FreiScale &fs_, Trigger &t_, uint32_t idx_) : fs(fs_), t(t_), idx(idx_), reference(fs.get_song_position(fs.mouse)) {
 		original = t;
 	}
 	virtual ~MoveStepAction() {
@@ -376,15 +376,17 @@ struct MoveStepAction : public Action {
 
 			t = original;
 
-			if (step < t.steps.size()) {
-				float old = t.steps[step].t;
-				t.steps[step].t = std::max(0.0f, t.steps[step].t + offset.t);
-				t.steps[step].p += offset.p;
-				if (step + 1 < t.steps.size()) {
-					t.steps[step+1].t = std::max(0.0f, t.steps[step+1].t - (t.steps[step].t - old));
+			if (idx == 0) {
+				//moving first step == 'start'
+			} else if (0 < idx && idx <= t.steps.size()) {
+				float old = t.steps[idx-1].t;
+				t.steps[idx-1].t = std::max(0.0f, t.steps[idx-1].t + offset.t);
+				t.steps[idx-1].p += offset.p;
+				if (idx < t.steps.size()) {
+					t.steps[idx].t = std::max(0.0f, t.steps[idx].t - (t.steps[idx-1].t - old));
 				}
 			} else {
-				//independent 'start' motion?
+				//??? bad index
 			}
 		}
 	}
@@ -392,7 +394,7 @@ struct MoveStepAction : public Action {
 	}
 	FreiScale &fs;
 	Trigger &t;
-	uint32_t step;
+	uint32_t idx; //0 -> start, 1 .. N -> steps
 
 	Trigger original;
 	TimeLog2Hz reference;
@@ -420,8 +422,11 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				} else if (mod_state & KMOD_ALT) {
 					composition->loop_end = get_song_position(mouse).t;
 				} else {
-					if (hovered.song_trigger) {
-						action.reset(new MoveTriggerAction(*this, *hovered.song_trigger));
+					Trigger *song_trigger = nullptr;
+					if (hovered.song_trigger_segment.first) song_trigger = hovered.song_trigger_segment.first;
+					if (hovered.song_trigger_handle.first) song_trigger = hovered.song_trigger_handle.first;
+					if (song_trigger) {
+						action.reset(new MoveTriggerAction(*this, *song_trigger));
 						return;
 					}
 				}
@@ -485,11 +490,12 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				composition->triggers.emplace_back(trigger);
 
 				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));
+				return;
 			}
 		} else if (evt.key.keysym.sym == SDLK_s) {
 			//add new step to trigger
-			if (song_box.contains(mouse) && hovered.song_trigger) {
-				auto &trigger = *hovered.song_trigger;
+			if (song_box.contains(mouse) && hovered.song_trigger_segment.first) {
+				auto &trigger = *hovered.song_trigger_segment.first;
 				TimeLog2Hz pos = get_song_position(mouse);
 				float t = pos.t - trigger.start.t;
 				uint32_t before = 0;
@@ -499,7 +505,14 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				}
 				trigger.steps.insert(trigger.steps.begin() + before, TimeLog2Hz(0, pos.p));
 
-				action.reset(new MoveStepAction(*this, *hovered.song_trigger, before));
+				action.reset(new MoveStepAction(*this, *hovered.song_trigger_segment.first, before));
+				return;
+			}
+		} else if (evt.key.keysym.sym == SDLK_g) {
+			//grab step in trigger
+			if (song_box.contains(mouse) && hovered.song_trigger_handle.first) {
+				action.reset(new MoveStepAction(*this, *hovered.song_trigger_handle.first, hovered.song_trigger_handle.second));
+				return;
 			}
 		} else if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
 			bool start_playback = true;
@@ -562,14 +575,41 @@ void FreiScale::update_hovered() {
 			}
 		}
 	} else if (song_box.contains(mouse)) {
-		float close = 10.0f;
-		for (auto &t : composition->triggers) {
-			glm::vec2 px = get_screen_position(t.start);
+		float close_handle = 10.0f;
+		float close_segment = 10.0f;
+
+		auto check_handle = [&](glm::vec2 const &px, Trigger &t, uint32_t idx) {
 			float d = std::max(std::abs(px.x - mouse.x), std::abs(px.y - mouse.y));
-			if (d < close) {
-				close = d;
-				hovered.song_trigger = &t;
+			if (d < close_handle) {
+				close_handle = d;
+				hovered.song_trigger_handle = std::make_pair(&t, idx);
 			}
+		};
+
+		auto check_segment = [&](glm::vec2 const &a, glm::vec2 const &b, Trigger &t, uint32_t idx) {
+			float along = glm::dot(mouse - a, b - a);
+			along = std::max(along, 0.0f);
+			along = std::min(along, glm::dot(b-a, b-a));
+			glm::vec2 px = (along / glm::dot(b-a, b-a)) * (b-a) + a;
+			float d = std::max(std::abs(px.x - mouse.x), std::abs(px.y - mouse.y));
+			if (d < close_segment) {
+				close_segment = d;
+				hovered.song_trigger_segment = std::make_pair(&t, idx);
+			}
+		};
+		for (auto &t : composition->triggers) {
+			check_handle(get_screen_position(t.start), t, 0);
+			TimeLog2Hz at = t.start;
+			TimeLog2Hz prev = at;
+			for (uint32_t s = 0; s < t.steps.size(); ++s) {
+				at.t += t.steps[s].t;
+				at.p = t.steps[s].p;
+				check_handle(get_screen_position(at), t, 1 + s);
+				check_segment(get_screen_position(prev), get_screen_position(at), t, s);
+				prev = at;
+			}
+			//TODO: correct tail length(!!)
+			check_segment(get_screen_position(prev), get_screen_position(prev) + glm::vec2(20.0f, 0.0f), t, t.steps.size());
 		}
 	}
 
