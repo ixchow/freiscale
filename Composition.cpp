@@ -1,7 +1,22 @@
 #include "Composition.hpp"
 
+#include <kit/read_chunk.hpp>
+
 #include <cassert>
 #include <iostream>
+#include <fstream>
+#include <unordered_map>
+
+Sound const *Composition::add_sound(Sound const &sound) {
+	//NOTE: could accelerate with some sort of hash of sounds if content-compare ends up too slow (as might happen with many samples of exactly the same length and initial content)
+	for (auto const &have : sounds) {
+		if (have == sound) {
+			return &have;
+		}
+	}
+	sounds.emplace_back(sound);
+	return &sounds.back();
+}
 
 void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer_) {
 	assert(begin_sample <= end_sample);
@@ -91,3 +106,126 @@ void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< 
 
 	}
 }
+
+struct FS2_snd0 {
+	uint32_t begin;
+	uint32_t end;
+};
+
+struct FS2_tps0 {
+	float t;
+	float p;
+};
+
+struct FS2_trg0 {
+	uint32_t snd;
+	uint32_t begin;
+	uint32_t end;
+};
+
+struct FS2_ifo0 {
+	float begin;
+	float end;
+	float loop_begin;
+	float loop_end;
+};
+
+Composition Composition::load(std::string const &path) {
+	std::ifstream from(path, std::ios::binary);
+
+	std::vector< Sample > smp0;
+	std::vector< FS2_snd0 > snd0;
+	std::vector< FS2_tps0 > tps0;
+	std::vector< FS2_trg0 > trg0;
+	FS2_ifo0 ifo0;
+
+	read_chunk(from, "smp0", &smp0);
+	read_chunk(from, "snd0", &snd0);
+	read_chunk(from, "tps0", &tps0);
+	read_chunk(from, "trg0", &trg0);
+	read_struct(from, "ifo0", &ifo0);
+
+	Composition ret;
+
+	std::vector< Sound const * > sounds;
+	for (auto &snd : snd0) {
+		if (snd.begin > snd.end || snd.end > smp0.size()) {
+			throw std::runtime_error("snd0 with out-of-range index");
+		}
+		sounds.emplace_back(ret.add_sound(Sound::from_samples(smp0.data() + snd.begin, smp0.data() + snd.end)));
+	}
+	std::cout << "Loaded " << sounds.size() << " sounds." << std::endl;
+
+	for (auto &trg : trg0) {
+		//NOTE: triggers *must* have at least one point, thus >= in begin/end compare:
+		if (trg.begin >= trg.end || trg.end > tps0.size()) {
+			throw std::runtime_error("trg0 with out-of-range index");
+		}
+		if (trg.snd >= sounds.size()) {
+			throw std::runtime_error("trg0 with out-of-range sound");
+		}
+		Trigger trigger;
+		trigger.sound = sounds[trg.snd];
+		trigger.start = TimeLog2Hz(tps0[trg.begin].t, tps0[trg.begin].p);
+		for (uint32_t i = trg.begin + 1; i < trg.end; ++i) {
+			trigger.steps.emplace_back(tps0[i].t, tps0[i].p);
+		}
+		ret.triggers.emplace_back(trigger);
+	}
+
+	std::cout << "Loaded " << ret.triggers.size() << " triggers." << std::endl;
+
+	ret.begin = ifo0.begin;
+	ret.end = ifo0.end;
+	ret.loop_begin = ifo0.loop_begin;
+	ret.loop_end = ifo0.loop_end;
+
+	return ret;
+}
+
+void Composition::save(std::string const &path) const {
+	std::ofstream to(path, std::ios::binary);
+
+	std::vector< Sample > smp0;
+	std::vector< FS2_snd0 > snd0;
+
+	std::unordered_map< Sound const *, uint32_t > sound_index;
+	for (auto const &sound : sounds) {
+		FS2_snd0 snd;
+		snd.begin = smp0.size();
+		smp0.insert(smp0.end(), sound.begin(), sound.end());
+		snd.end = smp0.size();
+		snd0.emplace_back(snd);
+
+		sound_index.emplace(&sound, sound_index.size());
+	}
+	write_chunk("smp0", smp0, &to);
+	write_chunk("snd0", snd0, &to);
+
+	std::vector< FS2_tps0 > tps0;
+	std::vector< FS2_trg0 > trg0;
+	for (auto const &trigger : triggers) {
+		FS2_trg0 trg;
+		trg.snd = sound_index.at(trigger.sound);
+		trg.begin = tps0.size();
+		tps0.emplace_back(FS2_tps0{trigger.start.t, trigger.start.p});
+		for (auto const &step : trigger.steps) {
+			tps0.emplace_back(FS2_tps0{step.t, step.p});
+		}
+		trg.end = tps0.size();
+		trg0.emplace_back(trg);
+	}
+
+	write_chunk("tps0", tps0, &to);
+	write_chunk("trg0", trg0, &to);
+
+	FS2_ifo0 ifo0;
+	ifo0.begin = begin;
+	ifo0.end = end;
+	ifo0.loop_begin = loop_begin;
+	ifo0.loop_end = loop_end;
+
+	write_struct("ifo0", ifo0, &to);
+}
+
+

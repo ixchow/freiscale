@@ -480,13 +480,18 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 		}
 	}
 	if (evt.type == SDL_KEYDOWN) {
-		if (evt.key.keysym.sym == SDLK_c) {
+		if (evt.key.keysym.sym == SDLK_F4) {
+			//save:
+			std::string filename = "temp.fs";
+			composition->save(filename);
+			std::cout << "Wrote '" << filename << "'." << std::endl;
+		} else if (evt.key.keysym.sym == SDLK_c) {
 			//"create" new trigger
 			if (song_box.contains(mouse) && current_library_sound) {
 				std::cout << "Make Trigger!" << std::endl;
 				Trigger trigger;
 				trigger.start = get_song_position(mouse);
-				trigger.sound = current_library_sound; //<-- TODO: decide how to bring sounds into composition(!!)
+				trigger.sound = composition->add_sound(*current_library_sound);
 				composition->triggers.emplace_back(trigger);
 
 				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));

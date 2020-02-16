@@ -103,6 +103,9 @@ struct Composition {
 	Time loop_begin = 0.0f;
 	Time loop_end = 8.0f;
 
+	//Helper: add (/dedup) sound:
+	Sound const *add_sound(Sound const &sound);
+
 	//Computationing:
 	//notice that samples can be negative(!)
 	//Required:
@@ -110,4 +113,9 @@ struct Composition {
 	//  buffer != nullptr
 	//Renders [begin_sample, end_sample) to buffer
 	void render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer);
+
+	//load/save:
+	static Composition load(std::string const &path);
+	void save(std::string const &path) const;
+
 };

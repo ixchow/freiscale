@@ -6,12 +6,12 @@ SubInclude TOP kit ;
 MySubDir TOP ;
 
 local NAMES =
+	Composition.cpp
+	FreiScale.cpp
 	Sound.cpp
 	Library.cpp
-	FreiScale.cpp
 	init.cpp
 	Output.cpp
-	Composition.cpp
 	UI.cpp
 	DrawLines.cpp
 	ColorProgram.cpp
