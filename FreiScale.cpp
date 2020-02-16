@@ -8,10 +8,8 @@
 #include <iostream>
 
 FreiScale::FreiScale(std::string const &library_path) : library(library_path) {
-	ui.add_box(&library_box);
-	ui.add_box(&song_box);
-
 	resized();
+	composition = std::make_unique< Composition >();
 }
 
 FreiScale::~FreiScale() {
@@ -35,29 +33,6 @@ void FreiScale::draw() {
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
-
-	{ //just something:
-		DrawLines draw_lines(glm::mat4(
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f
-		));
-
-		glm::vec2 px = glm::vec2(
-			2.0f / kit::display.window_size.x,
-			2.0f / kit::display.window_size.y
-		);
-
-		draw_lines.draw(glm::vec3(-1.0f,-1.0f, 0.0f), glm::vec3( 1.0f, 1.0f, 0.0f), glm::u8vec4(0xff, 0xff, 0x00, 0xff));
-		draw_lines.draw(glm::vec3(-1.0f, 1.0f, 0.0f), glm::vec3( 1.0f,-1.0f, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-
-		draw_lines.draw_text("FreiScale Begin",
-			glm::vec3(0.0f, 0.0f, 0.0f),
-			10.0f * glm::vec3(px.x, 0.0f, 0.0f),
-			10.0f * glm::vec3(0.0f, px.y, 0.0f));
-
-	}
 
 	auto draw_panel = [&](UIBox const &box, glm::u8vec4 const &color) {
 		DrawLines draw(glm::mat4(
@@ -89,8 +64,7 @@ void FreiScale::draw() {
 	draw_panel(library_box, glm::u8vec4(0x88, 0x00, 0x88, 0xff));
 	draw_panel(song_box, glm::u8vec4(0xff, 0xff, 0x00, 0xff));
 
-	{ //song box grid:
-
+	{ //song box:
 		DrawLines draw(glm::mat4(
 			2.0f / kit::display.window_size.x, 0.0f, 0.0f, 0.0f,
 			0.0f, 2.0f / kit::display.window_size.y, 0.0f, 0.0f,
@@ -102,6 +76,9 @@ void FreiScale::draw() {
 			int32_t major = 10;
 			int32_t min = int32_t(std::ceil((song_center.p - song_radius.p) * major));
 			int32_t max = int32_t(std::floor((song_center.p + song_radius.p) * major));
+
+			min = std::max(0 * major, min);
+			max = std::min(15 * major, max);
 
 			for (int32_t p = min; p <= max; ++p) {
 				float y = ((p / float(major)) - song_center.p + song_radius.p) / (2.0f * song_radius.p) * (song_box.max.y - song_box.min.y) + song_box.min.y;
@@ -121,7 +98,125 @@ void FreiScale::draw() {
 					(t % major == 0 ? glm::u8vec4(0x88, 0x00, 0x88, 0xff) : glm::u8vec4(0x44, 0x00, 0x44, 0xff)) );
 			}
 		}
+
+		{ //time markers:
+
+			auto draw_marker = [&,this](float t, glm::u8vec4 const &color) {
+				if (t < song_center.t - song_radius.t) return;
+				if (t > song_center.t + song_radius.t) return;
+
+				float x = ((t - song_center.t) / song_radius.t * 0.5f + 0.5f) * (song_box.max.x - song_box.min.x) + song_box.min.x;
+
+				draw.draw( glm::vec2(x, song_box.min.y), glm::vec2(x, song_box.max.y), color );
+			};
+			
+
+			draw_marker( composition->loop_begin, glm::u8vec4( 0xff, 0x00, 0x88, 0xff ) );
+			draw_marker( composition->loop_end, glm::u8vec4( 0x88, 0x00, 0x44, 0xff ) );
+		}
+
+		//Triggers:
+		for (auto const &t : composition->triggers) {
+
+			{ //show sample line:
+				glm::u8vec4 color = glm::u8vec4(0xaa, 0xcc, 0xbb, 0xff);
+				glm::u8vec4 color_dim = glm::u8vec4(0x55, 0x77, 0x44, 0xff);
+				const float Height = 10;
+
+				TimeLog2Hz at = t.start;
+				glm::vec2 px = get_screen_position(at);
+				draw.draw( px + glm::vec2(0.0f, -0.5f * Height), px + glm::vec2(0.0f, 0.5f * Height), color );
+
+				float remain = Time(t.sound ? t.sound->size() : 0) / Time(SampleRate);
+
+
+				for (uint32_t s = 0; s < t.steps.size(); ++s) {
+					float p0 = (s == 0 ? t.start.p : t.steps[s-1].p);
+					float p1 = t.steps[s].p;
+					float dt = t.steps[s].t;
+
+					float a = (p1 - p0) / dt;
+					float b = p0;
+
+					float len = std::exp2( b ) / (std::log(2.0f) * a) * (std::exp2( a * dt ) - 1.0f);
+
+
+					//TODO: figure out if sample lasts for entire segment...
+					TimeLog2Hz next = at;
+					next.t += dt;
+					next.p = p1;
+					glm::vec2 next_px = get_screen_position(next);
+
+					if (len < remain) {
+						remain -= len;
+
+						draw.draw( px, next_px, color );
+					} else if (remain > 0.0f) {
+						//remain terminates somewhere in here!
+						//TODO: do a two-color line to indicate where sample ends
+
+					} else {
+						//remain already terminated
+						draw.draw( px, next_px, color_dim );
+					}
+
+					at = next;
+					px = next_px;
+				}
+
+				float tail_px = 0.0f;
+				if (remain > 0.0f) {
+					float p = (t.steps.empty() ? t.start.p : t.steps.back().p);
+					TimeLog2Hz next = at;
+					next.t += remain / std::exp2( p );
+					glm::vec2 next_px = get_screen_position(next);
+
+					tail_px = next_px.x - px.x;
+
+					draw.draw( px, next_px, color );
+					draw.draw( next_px + glm::vec2(0.0f, -0.5f * Height), next_px + glm::vec2(0.0f, 0.5f * Height), color );
+					
+					px = next_px;
+				}
+
+				if (tail_px < 20.0f) {
+					glm::vec2 next_px = px;
+					next_px.x += (20.0f - tail_px);
+					draw.draw( px, next_px, color_dim );
+				}
+
+				//TODO: draw enough of a tail to grab
+			}
+
+			{ //outline handles:
+				glm::u8vec4 color = glm::u8vec4(0x76, 0x9a, 0x4b, 0xff);
+
+				std::vector< glm::vec2 > box{
+					glm::vec2(-2.0f, -2.0f),
+					glm::vec2( 2.0f, -2.0f),
+					glm::vec2( 2.0f,  2.0f),
+					glm::vec2(-2.0f,  2.0f)
+				};
+
+				TimeLog2Hz at = t.start;
+
+				glm::vec2 px = get_screen_position(at);
+				for (uint32_t i = 0; i < box.size(); ++i) {
+					draw.draw( px + box[i], px + box[(i+1)%box.size()], color );
+				}
+				for (uint32_t s = 0; s < t.steps.size(); ++s) {
+					at.t += t.steps[s].t;
+					at.p = t.steps[s].p;
+					px = get_screen_position(at);
+					for (uint32_t i = 0; i < box.size(); ++i) {
+						draw.draw( px + box[i], px + box[(i+1)%box.size()], color );
+					}
+				}
+			}
+
+		}
 	}
+
 
 	{ //library list:
 		DrawLines draw(glm::mat4(
@@ -189,7 +284,67 @@ void FreiScale::draw() {
 		draw_folder(0, library.root);
 
 	}
+
+	if (!show_sound.empty()) { //DEBUG: playback waveform
+		DrawLines draw(glm::mat4(
+			2.0f / float(show_sound.size()), 0.0f, 0.0f, 0.0f,
+			0.0f, 0.5f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			-1.0f, 0.0f, 0.0f, 1.0f
+		));
+		for (uint32_t i = 1; i < show_sound.size(); ++i) {
+			draw.draw( glm::vec2( i-1, show_sound[i-1].l ), glm::vec2( i, show_sound[i].l ), glm::u8vec4( 0x88, 0x88, 0x88, 0xff ) );
+		}
+	}
 }
+
+struct MoveTriggerAction : public Action {
+	MoveTriggerAction(FreiScale &fs_, Trigger &t_) : fs(fs_), t(t_), reference(fs.get_song_position(fs.mouse)) {
+		original.emplace_back(t.start);
+		for (auto const &s : t.steps) {
+			original.emplace_back(s);
+		}
+	}
+	virtual ~MoveTriggerAction() {
+	}
+	virtual void handle_event(SDL_Event const &evt) override {
+		if (evt.type == SDL_MOUSEBUTTONUP) {
+			if (evt.button.button == SDL_BUTTON_LEFT) {
+				fs.action.reset();
+				return;
+			}
+		}
+		if (evt.type == SDL_KEYDOWN) {
+			if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+				//TODO: preview playback trigger/cancel
+			} else if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+				//TODO: cancel action
+			}
+		}
+		if (evt.type == SDL_MOUSEMOTION) {
+			fs.mouse = glm::vec2( evt.motion.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
+			TimeLog2Hz current = fs.get_song_position(fs.mouse);
+
+			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
+
+			t.start = original[0];
+			t.start.t += offset.t;
+			t.start.p += offset.p;
+			for (uint32_t s = 0; s < t.steps.size(); ++s) {
+				t.steps[s] = original[s+1];
+				//t.steps[s].t += offset.t; <-- already relative
+				t.steps[s].p += offset.p;
+			}
+
+		}
+	}
+	virtual void draw() {
+	}
+	FreiScale &fs;
+	Trigger &t;
+	std::vector< TimeLog2Hz > original;
+	TimeLog2Hz reference;
+};
 
 void FreiScale::handle_event(SDL_Event const &evt) {
 	if (action) {
@@ -198,27 +353,52 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 	}
 	if (evt.type == SDL_MOUSEMOTION) {
 		mouse = glm::vec2( evt.motion.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
+		return;
 	}
 	if (evt.type == SDL_MOUSEBUTTONDOWN) {
 		mouse = glm::vec2( evt.button.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
 		update_hovered();
-		if (hovered.library_sound) {
+		if (song_box.contains(mouse)) {
+			//------ song interactions -----
 			if (evt.button.button == SDL_BUTTON_LEFT) {
-				std::cout << "~~~Select Sound!~~~" << std::endl;
-			} else if (evt.button.button == SDL_BUTTON_RIGHT) {
-				std::cout << "~~~Play Sound!~~~" << std::endl;
-				std::vector< Output::Sample > preview;
-				preview.reserve(hovered.library_sound->size());
-				for (auto s : *hovered.library_sound) {
-					Output::Sample o;
-					o.l = s;
-					o.r = s;
-					preview.emplace_back(o);
+				auto mod_state = SDL_GetModState();
+				if (mod_state & KMOD_CTRL) {
+					composition->loop_begin = get_song_position(mouse).t;
+				} else if (mod_state & KMOD_ALT) {
+					composition->loop_end = get_song_position(mouse).t;
+				} else {
+					if (hovered.song_trigger) {
+						action.reset(new MoveTriggerAction(*this, *hovered.song_trigger));
+						return;
+					}
 				}
-				Output::lock();
-				Output::playing_data = preview;
-				Output::playing_position = 0;
-				Output::unlock();
+			} else if (evt.button.button == SDL_BUTTON_MIDDLE) {
+				//TODO: pan view
+			}
+		} else if (library_box.contains(mouse)) {
+			//------ library interactions -----
+			if (hovered.library_sound) {
+				if (evt.button.button == SDL_BUTTON_LEFT) {
+					std::cout << "~~~Select Sound!~~~" << std::endl;
+					if (hovered.library_sound) {
+						current_library_sound = hovered.library_sound;
+					}
+				} else if (evt.button.button == SDL_BUTTON_RIGHT) {
+					std::cout << "~~~Play Sound!~~~" << std::endl;
+					std::vector< Output::Sample > preview;
+					preview.reserve(hovered.library_sound->size());
+					for (auto s : *hovered.library_sound) {
+						Output::Sample o;
+						o.l = s;
+						o.r = s;
+						preview.emplace_back(o);
+					}
+					show_sound = preview;
+					Output::lock();
+					Output::playing_data = preview;
+					Output::playing_position = 0;
+					Output::unlock();
+				}
 			}
 		}
 	}
@@ -226,16 +406,74 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 		if (library_box.contains(mouse)) {
 			library_top -= evt.wheel.y;
 			library_top = std::max(0.0f, library_top);
+		} else if (song_box.contains(mouse)) {
+			TimeLog2Hz focus = get_song_position(mouse);
+
+			if (SDL_GetModState() & KMOD_SHIFT) {
+				song_radius.p = std::min(16.0f, std::max(0.1f, song_radius.p * std::exp2(0.25f * evt.wheel.y)));
+			} else {
+				song_radius.t = std::min(100.0f, std::max(0.1f, song_radius.t * std::exp2(0.25f * evt.wheel.y)));
+			}
+
+			TimeLog2Hz new_focus = get_song_position(mouse);
+
+			song_center.t += focus.t - new_focus.t;
+			song_center.p += focus.p - new_focus.p;
 		}
 	}
 	if (evt.type == SDL_KEYDOWN) {
-		if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+		if (evt.key.keysym.sym == SDLK_c) {
+			//"create" new trigger
+			if (song_box.contains(mouse) && current_library_sound) {
+				std::cout << "Make Trigger!" << std::endl;
+				Trigger trigger;
+				trigger.start = get_song_position(mouse);
+				trigger.sound = current_library_sound; //<-- TODO: decide how to bring sounds into composition(!!)
+				composition->triggers.emplace_back(trigger);
+
+				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));
+			}
+		} else if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+			bool start_playback = true;
 			Output::lock();
 			if (Output::playing_position < Output::playing_data.size()) {
 				std::cout << "Halting Playback." << std::endl;
 				Output::playing_position = Output::playing_data.size();
+				start_playback = false;
 			}
 			Output::unlock();
+
+			if (start_playback) {
+				if (song_box.contains(mouse)) {
+					std::cout << "Trying to play loop..." << std::endl;
+					int32_t loop_begin = composition->loop_begin * SampleRate;
+					int32_t loop_end = composition->loop_end * SampleRate;
+					if (loop_begin < loop_end) {
+						//HACK: don't render more than 60 seconds for now...
+						loop_end = std::min(loop_end, loop_begin + 60 * int32_t(SampleRate));
+
+						std::cout << "  rendering..." << std::endl;
+						std::vector< Sample > buffer;
+						composition->render(loop_begin, loop_end, &buffer);
+						std::cout << "  playing..." << std::endl;
+						std::vector< Output::Sample > preview;
+						preview.reserve(buffer.size());
+						for (auto s : buffer) {
+							Output::Sample o;
+							o.l = s;
+							o.r = s;
+							preview.emplace_back(o);
+						}
+						show_sound = preview;
+						Output::lock();
+						Output::playing_data = preview;
+						Output::playing_position = 0;
+						Output::unlock();
+					}
+				}
+			} else {
+				show_sound.clear();
+			}
 		}
 	}
 }
@@ -253,6 +491,16 @@ void FreiScale::update_hovered() {
 		for (auto const &[box, sound] : library_sound_boxes) {
 			if (box.contains(mouse)) {
 				hovered.library_sound = sound;
+			}
+		}
+	} else if (song_box.contains(mouse)) {
+		float close = 10.0f;
+		for (auto &t : composition->triggers) {
+			glm::vec2 px = get_screen_position(t.start);
+			float d = std::max(std::abs(px.x - mouse.x), std::abs(px.y - mouse.y));
+			if (d < close) {
+				close = d;
+				hovered.song_trigger = &t;
 			}
 		}
 	}

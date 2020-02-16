@@ -34,6 +34,7 @@ struct Trigger {
 	Sound const *sound = nullptr;
 	TimeLog2Hz start = TimeLog2Hz(0.0f, 0.0f);
 	std::vector< TimeLog2Hz > steps; //pitch/time warping
+	//NOTE: steps are *delta* time, *absolute* pitch
 	//TODO: panning? loudness?
 
 	Time length() const {
@@ -62,6 +63,9 @@ struct Trigger {
 		float p = (steps.empty() ? start.p : steps.back().p);
 		return used + remain / std::exp2(p);
 	}
+
+	//DEBUG:
+	std::vector< float > sources; //time points in original sound that map to samples starting at std::ceil(start.t * SampleRate)
 };
 
 /*
@@ -94,9 +98,9 @@ struct Composition {
 	std::list< Layer > layers; //reference blocks via
 	*/
 	//Markers:
-	Time start = 0.0f;
+	Time begin = 0.0f;
 	Time end = 8.0f;
-	Time loop_start = 0.0f;
+	Time loop_begin = 0.0f;
 	Time loop_end = 8.0f;
 
 	//Computationing:
