@@ -346,6 +346,59 @@ struct MoveTriggerAction : public Action {
 	TimeLog2Hz reference;
 };
 
+struct MoveStepAction : public Action {
+	MoveStepAction(FreiScale &fs_, Trigger &t_, uint32_t step_) : fs(fs_), t(t_), step(step_), reference(fs.get_song_position(fs.mouse)) {
+		original = t;
+	}
+	virtual ~MoveStepAction() {
+	}
+	virtual void handle_event(SDL_Event const &evt) override {
+		if (evt.type == SDL_MOUSEBUTTONUP) {
+			if (evt.button.button == SDL_BUTTON_LEFT) {
+				fs.action.reset();
+				return;
+			}
+		}
+		if (evt.type == SDL_KEYDOWN) {
+			if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+				//TODO: preview playback trigger/cancel
+			} else if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+				//cancel action
+				t = original;
+				fs.action.reset();
+			}
+		}
+		if (evt.type == SDL_MOUSEMOTION) {
+			fs.mouse = glm::vec2( evt.motion.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
+			TimeLog2Hz current = fs.get_song_position(fs.mouse);
+
+			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
+
+			t = original;
+
+			if (step < t.steps.size()) {
+				float old = t.steps[step].t;
+				t.steps[step].t = std::max(0.0f, t.steps[step].t + offset.t);
+				t.steps[step].p += offset.p;
+				if (step + 1 < t.steps.size()) {
+					t.steps[step+1].t = std::max(0.0f, t.steps[step+1].t - (t.steps[step].t - old));
+				}
+			} else {
+				//independent 'start' motion?
+			}
+		}
+	}
+	virtual void draw() {
+	}
+	FreiScale &fs;
+	Trigger &t;
+	uint32_t step;
+
+	Trigger original;
+	TimeLog2Hz reference;
+};
+
+
 void FreiScale::handle_event(SDL_Event const &evt) {
 	if (action) {
 		action->handle_event(evt);
@@ -432,6 +485,21 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				composition->triggers.emplace_back(trigger);
 
 				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));
+			}
+		} else if (evt.key.keysym.sym == SDLK_s) {
+			//add new step to trigger
+			if (song_box.contains(mouse) && hovered.song_trigger) {
+				auto &trigger = *hovered.song_trigger;
+				TimeLog2Hz pos = get_song_position(mouse);
+				float t = pos.t - trigger.start.t;
+				uint32_t before = 0;
+				while (before < trigger.steps.size() && t > trigger.steps[before].t) {
+					t -= trigger.steps[before].t;
+					++before;
+				}
+				trigger.steps.insert(trigger.steps.begin() + before, TimeLog2Hz(0, pos.p));
+
+				action.reset(new MoveStepAction(*this, *hovered.song_trigger, before));
 			}
 		} else if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
 			bool start_playback = true;

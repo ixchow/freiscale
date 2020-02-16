@@ -42,7 +42,6 @@ d / dx ( 2^{ax + b} )
 
 TODOs:
 
- - sample library read directories + files
- - sample -> composition
- - play composition
+ - trigger steps
+ - load/save
  - (analysis)
