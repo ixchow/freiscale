@@ -45,7 +45,7 @@ Library::Library(std::string const &path_) : path(path_) {
 
 
 
-#ifdef WINDOWS
+#ifdef _WIN32
 //windows-y directory listing:
 #include <io.h>
 #include <sys/stat.h>

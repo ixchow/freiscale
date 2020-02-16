@@ -6,6 +6,7 @@
 #include <SDL_events.h>
 
 #include <iostream>
+#include <algorithm>
 
 FreiScale::FreiScale(std::string const &library_path) : library(library_path) {
 	resized();
