@@ -42,7 +42,6 @@ d / dx ( 2^{ax + b} )
 
 TODOs:
 
- - trigger step hovering / editing
+ - trigger step hovering / editing --> creating first step seems a bit broken
  - trigger steps -> absolute? probably simpler to deal with in general
- - load/save
  - (analysis)
