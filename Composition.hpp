@@ -12,7 +12,7 @@ constexpr uint32_t SampleRate = 48000;
 
 constexpr uint32_t SpectrumRate = 200; //spectrums per second
 constexpr uint32_t SpectrumStep = SampleRate / SpectrumRate; //sample offset between subsequent spectrums
-constexpr uint32_t SpectrumSize = (1 << 11); //spectrum is computed from this many samples
+constexpr uint32_t SpectrumSize = (1 << 12); //spectrum is computed from this many samples
 
 static_assert(SampleRate % SpectrumRate == 0, "Spectrums start on sample boundaries.");
 

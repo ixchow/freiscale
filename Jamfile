@@ -22,6 +22,7 @@ local NAMES =
 
 OTFFT_DIR = otfft-11.5e ;
 
+ObjectC++Flags $(NAMES) : -mavx ; #match otfft.o flags
 ObjectC++Flags Sound-compute_spectrums.cpp : -I$(OTFFT_DIR) ;
 
 MyObjects $(NAMES) ;

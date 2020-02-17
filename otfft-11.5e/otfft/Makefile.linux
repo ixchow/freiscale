@@ -8,10 +8,10 @@ CXXFLAGS += -fPIC
 CXXFLAGS += -std=c++17
 #CXXFLAGS += -std=c++14
 #CXXFLAGS += -std=c++11
-CXXFLAGS += -march=native
+#CXXFLAGS += -march=native
 #CXXFLAGS += -mavx512f -mavx512dq
 #CXXFLAGS += -mavx2 -mfma
-#CXXFLAGS += -mavx
+CXXFLAGS += -mavx
 #CXXFLAGS += -msse2 -mfpmath=sse#+387
 #CXXFLAGS += -Xclang
 #CXXFLAGS += -fopenmp

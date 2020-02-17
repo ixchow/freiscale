@@ -5,12 +5,16 @@ Big ideas:
  - frequency 
 
 
+Using OTFFT getting some GPFs -- think it may be memory alignment but was having problems replicating. Trying to match -march flags between fs2 and otfft.o builds might help. (This is going to be a bit tricky on windows.)
+
 time: integer sample offset @ 48000 kHz, float would work
 
 log2hz: integer 8.24 would work, float would be fine
 
 sample: 8.24 would work, float [might] be fine
 
+
+Apparently convolution reverbs often use FFTs for the tail and not for the head (but maybe this is only a real-time limitation)
 
 Usage:
 

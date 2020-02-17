@@ -16,6 +16,9 @@ void Sound::compute_spectrums() {
 	OTFFT::simd_array< double > x(SpectrumSize);
 	OTFFT::simd_array< OTFFT::complex_t > y(SpectrumSize);
 
+	std::cout << "X alignment % 64 " << ((reinterpret_cast< uint8_t * >(x.p) - reinterpret_cast< uint8_t * >(NULL)) % 64) << std::endl;
+	std::cout << "Y alignment % 64 " << ((reinterpret_cast< uint8_t * >(y.p) - reinterpret_cast< uint8_t * >(NULL)) % 64) << std::endl;
+
 	//FFT processor:
 	OTFFT::RFFT rfft(SpectrumSize);
 
