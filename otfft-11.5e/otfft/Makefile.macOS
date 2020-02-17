@@ -1,0 +1,65 @@
+CXX := $(notdir $(shell ls /opt/local/bin/clang++-* 2> /dev/null | tail -1))
+#CXX := clang++-mp-8.0
+#CXX := clang++
+#CXX := g++-mp-9
+
+LIB := $(HOME)/lib
+
+ifeq ($(CXX),)
+    $(error Please install MacPorts clang >= 3.8 at default location)
+endif
+
+#CXX += -flto
+#CXX += -flto=thin
+
+CXXFLAGS := -O3
+#CXXFLAGS += -Wa,-q# required: cd /opt/local/bin; sudo ln -s /usr/bin/clang
+#CXXFLAGS += -std=c++17
+CXXFLAGS += -std=c++14
+#CXXFLAGS += -std=c++11
+CXXFLAGS += -march=native
+#CXXFLAGS += -mavx512f -mavx512dq
+#CXXFLAGS += -mavx2 -mfma
+#CXXFLAGS += -mavx
+#CXXFLAGS += -msse2 -mfpmath=sse#+387
+#CXXFLAGS += -Xclang
+CXXFLAGS += -fopenmp
+CXXFLAGS += -funroll-loops
+#CXXFLAGS += -funroll-all-loops
+#CXXFLAGS += -ffast-math
+#CXXFLAGS += -malign-double
+#CXXFLAGS += -fomit-frame-pointer
+#CXXFLAGS += -ftree-vectorize
+#CXXFLAGS += -DDO_SINGLE_THREAD
+#CXXFLAGS += -DUSE_UNALIGNED_MEMORY
+
+LDLIBS := -L/opt/local/lib/libomp -lomp
+#LDLIBS := -L$(HOME)/lib -liomp5
+#LDLIBS := -lgomp
+
+HEADERS1 := $(filter-out otfft_c.h, $(wildcard otfft_*.h))
+HEADERS2 := $(filter-out otfft_gen_%.h, $(HEADERS1))
+
+MAKEFILE := Makefile.macOS
+
+all: ffttune rewrite
+
+clean:
+	@rm -f ffttune rewrite *.exe *.o *.dylib *.gch
+
+otfft.o: otfft.cpp otfft.h $(HEADERS1) otfft_c.cpp $(MAKEFILE)
+
+ffttune.o: ffttune.cpp $(HEADERS2) msleep.h $(MAKEFILE)
+ffttune: ffttune.o
+	$(CXX) $^ $(LDLIBS) -o $@
+
+rewrite.o: rewrite.cpp $(MAKEFILE)
+rewrite: rewrite.o
+	$(CXX) $^ -o $@
+
+lib: libotfft.dylib
+	install -d $(LIB)
+	install $< $(LIB)
+
+libotfft.dylib: otfft.o
+	$(CXX) -dynamiclib $< $(LDLIBS) -install_name @rpath/$@ -o $@

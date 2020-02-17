@@ -39,7 +39,7 @@ struct FreiScale : kit::Mode {
 	TimeLog2Hz song_center = TimeLog2Hz(8.0f, 0.0f);
 	TimeLog2Hz song_radius = TimeLog2Hz(8.5f, 2.5f);
 
-	glm::vec2 mouse; //in layout pixels
+	glm::vec2 mouse = glm::vec2(0.0f, 0.0f); //in layout pixels
 	TimeLog2Hz get_song_position(glm::vec2 const &px) const {
 		return TimeLog2Hz(
 			((px.x - song_box.min.x) / (song_box.max.x - song_box.min.x) * 2.0f - 1.0f) * song_radius.t + song_center.t,

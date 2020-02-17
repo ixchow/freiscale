@@ -5,9 +5,16 @@
 #include <cstdint>
 #include <cmath>
 #include <string>
+#include <memory>
 
 //sample rate:
-const uint32_t SampleRate = 48000;
+constexpr uint32_t SampleRate = 48000;
+
+constexpr uint32_t SpectrumRate = 200; //spectrums per second
+constexpr uint32_t SpectrumStep = SampleRate / SpectrumRate; //sample offset between subsequent spectrums
+constexpr uint32_t SpectrumSize = (1 << 11); //spectrum is computed from this many samples
+
+static_assert(SampleRate % SpectrumRate == 0, "Spectrums start on sample boundaries.");
 
 //individual sample:
 typedef float Sample;
@@ -24,6 +31,9 @@ struct TimeLog2Hz {
 //Sounds are lists of Samples @ (by default) SampleRate:
 struct Sound : std::vector< Sample > {
 	//TODO: autocorrelation info (Log2Hz vs time curves for vis/snapping)
+
+	std::vector< float > spectrums;
+	void compute_spectrums();
 
 	static Sound load(std::string const &path); //throws on error
 	static Sound from_samples(Sample const *begin, Sample const *end);

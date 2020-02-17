@@ -11,7 +11,7 @@
 Sound const *Composition::add_sound(Sound const &sound) {
 	//NOTE: could accelerate with some sort of hash of sounds if content-compare ends up too slow (as might happen with many samples of exactly the same length and initial content)
 	for (auto const &have : sounds) {
-		if (have == sound) {
+		if (static_cast< std::vector< Sample > const & >(have) == static_cast< std::vector< Sample > const & >(sound)) {
 			return &have;
 		}
 	}

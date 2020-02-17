@@ -6,6 +6,7 @@ SubInclude TOP kit ;
 MySubDir TOP ;
 
 local NAMES =
+	Sound-compute_spectrums.cpp
 	Composition.cpp
 	FreiScale.cpp
 	Sound.cpp
@@ -19,6 +20,10 @@ local NAMES =
 	PathFont-font.cpp
 ;
 
+OTFFT_DIR = otfft-11.5e ;
+
+ObjectC++Flags Sound-compute_spectrums.cpp : -I$(OTFFT_DIR) ;
+
 MyObjects $(NAMES) ;
 
-MyMainFromObjects fs2 : $(NAMES:S=$(SUFOBJ)) $(KIT_OBJECTS) ;
+MyMainFromObjects fs2 : $(NAMES:S=$(SUFOBJ)) $(KIT_OBJECTS) $(OTFFT_DIR)/otfft/otfft.o ;

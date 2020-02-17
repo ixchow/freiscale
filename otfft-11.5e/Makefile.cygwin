@@ -1,0 +1,95 @@
+#CXX := g++
+#CXX := x86_64-w64-mingw32-g++
+
+ALT := $(HOME)/alt
+
+CXXFLAGS := -O3
+#CXXFLAGS += -std=c++17
+CXXFLAGS += -std=c++14
+#CXXFLAGS += -std=c++11
+#CXXFLAGS += -std=c++03
+CXXFLAGS += -march=native
+#CXXFLAGS += -mavx512f -mavx512dq
+#CXXFLAGS += -mavx2 -mfma
+#CXXFLAGS += -mavx
+#CXXFLAGS += -msse2 -mfpmath=sse#+387
+#CXXFLAGS += -Xclang
+CXXFLAGS += -fopenmp
+CXXFLAGS += -funroll-loops
+#CXXFLAGS += -funroll-all-loops
+#CXXFLAGS += -ffast-math
+#CXXFLAGS += -malign-double
+#CXXFLAGS += -fomit-frame-pointer
+#CXXFLAGS += -ftree-vectorize
+#CXXFLAGS += -DDO_SINGLE_THREAD
+#CXXFLAGS += -DUSE_UNALIGNED_MEMORY
+
+ALTINC := $(subst $(ALT),-I$(ALT),$(shell ls -d $(ALT)/include 2> /dev/null))
+CXXFLAGS += $(ALTINC)
+#CXXFLAGS += -I$(ALT)/include
+#CXXFLAGS += -I/alt-mingw/include
+
+OMPLIB := -lgomp
+
+ALTLIB := $(subst $(ALT),-L$(ALT),$(shell ls -d $(ALT)/lib 2> /dev/null))
+LDLIBS := $(ALTLIB) -lfftw3_threads -lfftw3 $(OMPLIB)
+#LDLIBS := -L$(ALT)/lib -lfftw3_threads -lfftw3 $(OMPLIB)
+#LDLIBS := -L$(ALT)/lib -lfftw3_omp -lfftw3 $(OMPLIB)
+#LDLIBS := -L/alt-mingw/lib -lfftw3_threads -lfftw3 $(OMPLIB)
+
+HEADERS1 := cpp_fftw3.h ooura1.h simple_fft.h
+HEADERS2 := cpp_fftw3.h ooura2.h simple_fft.h
+HEADERS3 := $(filter-out otfft/otfft_c.h, $(wildcard otfft/otfft*.h))
+
+MAKEFILE := Makefile.cygwin
+
+benchmark: fftbench1
+
+clean:
+	@rm -f fftcheck rfftcheck dctcheck bstcheck
+	@rm -f fftcheck2 rfftcheck2
+	@rm -f fftbench0 fftbench1 fftbench2 fftbench3
+	@rm -f *.o *.exe
+
+otfft/otfft.o: otfft/otfft*.cpp $(HEADERS3) otfft/$(MAKEFILE)
+	@$(MAKE) -C otfft otfft.o
+
+fftcheck.o: fftcheck.cpp simple_fft.h $(MAKEFILE)
+fftcheck: fftcheck.o otfft/otfft.o
+	$(CXX) $^ $(OMPLIB) -o $@
+
+fftcheck2.o: fftcheck2.cpp simple_dft.h $(MAKEFILE)
+fftcheck2: fftcheck2.o otfft/otfft.o
+	$(CXX) $^ $(OMPLIB) -o $@
+
+rfftcheck.o: rfftcheck.cpp simple_fft.h $(MAKEFILE)
+rfftcheck: rfftcheck.o otfft/otfft.o
+	$(CXX) $^ $(OMPLIB) -o $@
+
+rfftcheck2.o: rfftcheck2.cpp simple_dft.h $(MAKEFILE)
+rfftcheck2: rfftcheck2.o otfft/otfft.o
+	$(CXX) $^ $(OMPLIB) -o $@
+
+dctcheck.o: dctcheck.cpp $(MAKEFILE)
+dctcheck: dctcheck.o otfft/otfft.o
+	$(CXX) $^ $(OMPLIB) -o $@
+
+bstcheck.o: bstcheck.cpp $(MAKEFILE)
+bstcheck: bstcheck.o otfft/otfft.o
+	$(CXX) $^ $(OMPLIB) -o $@
+
+fftbench0.o: fftbench0.cpp $(HEADERS1) stopwatch.h $(MAKEFILE)
+fftbench0: fftbench0.o otfft/otfft.o
+	$(CXX) $^ $(LDLIBS) -o $@
+
+fftbench1.o: fftbench1.cpp $(HEADERS1) otfft/msleep.h $(MAKEFILE)
+fftbench1: fftbench1.o otfft/otfft.o
+	$(CXX) $^ $(LDLIBS) -o $@
+
+fftbench2.o: fftbench2.cpp $(HEADERS2) otfft/msleep.h $(MAKEFILE)
+fftbench2: fftbench2.o otfft/otfft.o
+	$(CXX) $^ $(LDLIBS) -o $@
+
+fftbench3.o: fftbench3.cpp cpp_fftw3.h otfft/msleep.h $(MAKEFILE)
+fftbench3: fftbench3.o otfft/otfft.o
+	$(CXX) $^ $(LDLIBS) -o $@

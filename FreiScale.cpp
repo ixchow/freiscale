@@ -542,6 +542,11 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 						std::cout << "  rendering..." << std::endl;
 						std::vector< Sample > buffer;
 						composition->render(loop_begin, loop_end, &buffer);
+
+						std::cout << "  analyzing..." << std::endl;
+						Sound temp = Sound::from_samples(buffer.data(), buffer.data() + buffer.size());
+						temp.compute_spectrums();
+
 						std::cout << "  playing..." << std::endl;
 						std::vector< Output::Sample > preview;
 						preview.reserve(buffer.size());
