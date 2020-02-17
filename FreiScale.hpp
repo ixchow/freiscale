@@ -74,4 +74,8 @@ struct FreiScale : kit::Mode {
 
 	std::vector< Output::Sample > show_sound;
 
+	GLuint spectrum_tex = 0;
+	float spectrum_tex_t0 = 0.0f;
+	float spectrum_tex_t1 = 0.0f;
+
 };

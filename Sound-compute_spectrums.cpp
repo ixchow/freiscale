@@ -49,4 +49,13 @@ void Sound::compute_spectrums() {
 			spectrum[s] = y[s].Re * y[s].Re + y[s].Im * y[s].Im;
 		}
 	}
+
+	float min = std::numeric_limits< float >::infinity();
+	float max = -std::numeric_limits< float >::infinity();
+	for (auto &s : spectrums) {
+		min = std::min(min, s);
+		max = std::max(max, s);
+	}
+	std::cout << "Spectrum values in [" << min << ", " << max << "]." << std::endl;
+
 }

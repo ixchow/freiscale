@@ -6,9 +6,10 @@ SubInclude TOP kit ;
 MySubDir TOP ;
 
 local NAMES =
+	FreiScale.cpp
+	SpectrumProgram.cpp
 	Sound-compute_spectrums.cpp
 	Composition.cpp
-	FreiScale.cpp
 	Sound.cpp
 	Library.cpp
 	init.cpp

@@ -2,11 +2,63 @@
 
 #include "DrawLines.hpp"
 #include "Output.hpp"
+#include "SpectrumProgram.hpp"
+
+#include <kit/gl_errors.hpp>
 
 #include <SDL_events.h>
 
 #include <iostream>
 #include <algorithm>
+
+
+static GLuint vertex_buffer = 0;
+static GLuint vertex_buffer_for_spectrum_program = 0;
+
+struct SpectrumVertex {
+	glm::vec2 Position;
+	glm::vec2 TexCoord;
+};
+
+static kit::Load< void > setup_buffers(kit::LoadTagDefault, [](){
+	//you may recognize this init code from DrawLines.cpp:
+
+	glGenBuffers(1, &vertex_buffer);
+
+	glGenVertexArrays(1, &vertex_buffer_for_spectrum_program);
+	glBindVertexArray(vertex_buffer_for_spectrum_program);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+
+	glVertexAttribPointer(
+		spectrum_program->Position_vec4, //attribute
+		2, //size
+		GL_FLOAT, //type
+		GL_FALSE, //normalized
+		sizeof(DrawLines::Vertex), //stride
+		(GLbyte *)0 + offsetof(SpectrumVertex, Position) //offset
+	);
+	glEnableVertexAttribArray(spectrum_program->Position_vec4);
+
+	glVertexAttribPointer(
+		spectrum_program->TexCoord_vec2, //attribute
+		2, //size
+		GL_FLOAT, //type
+		GL_FALSE, //normalized
+		sizeof(DrawLines::Vertex), //stride
+		(GLbyte *)0 + offsetof(SpectrumVertex, TexCoord) //offset
+	);
+	glEnableVertexAttribArray(spectrum_program->TexCoord_vec2);
+
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glBindVertexArray(0);
+
+	GL_ERRORS(); //PARANOIA: make sure nothing strange happened during setup
+});
+
+
 
 FreiScale::FreiScale(std::string const &library_path) : library(library_path) {
 	resized();
@@ -65,14 +117,17 @@ void FreiScale::draw() {
 	draw_panel(library_box, glm::u8vec4(0x88, 0x00, 0x88, 0xff));
 	draw_panel(song_box, glm::u8vec4(0xff, 0xff, 0x00, 0xff));
 
+	glm::mat4 px_to_clip = glm::mat4(
+		2.0f / kit::display.window_size.x, 0.0f, 0.0f, 0.0f,
+		0.0f, 2.0f / kit::display.window_size.y, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		-1.0f, -1.0f, 0.0f, 1.0f
+	);
+
 	{ //song box:
-		DrawLines draw(glm::mat4(
-			2.0f / kit::display.window_size.x, 0.0f, 0.0f, 0.0f,
-			0.0f, 2.0f / kit::display.window_size.y, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			-1.0f, -1.0f, 0.0f, 1.0f
-		));
-		
+		DrawLines draw(px_to_clip);
+
+			
 		{ //pitch scale grid:
 			int32_t major = 10;
 			int32_t min = int32_t(std::ceil((song_center.p - song_radius.p) * major));
@@ -115,6 +170,10 @@ void FreiScale::draw() {
 			draw_marker( composition->loop_begin, glm::u8vec4( 0xff, 0x00, 0x88, 0xff ) );
 			draw_marker( composition->loop_end, glm::u8vec4( 0x88, 0x00, 0x44, 0xff ) );
 		}
+
+
+
+	
 
 		//Triggers:
 		for (auto const &t : composition->triggers) {
@@ -219,6 +278,53 @@ void FreiScale::draw() {
 	}
 
 
+	//DEBUG: draw this over the grid:
+	{
+		if (spectrum_tex) {
+			float min_hz = 20.0f;
+			float max_hz = SampleRate / 2.0f;
+			glm::vec2 min = get_screen_position(
+				TimeLog2Hz( spectrum_tex_t0, std::log2( min_hz ) )
+			);
+			glm::vec2 max = get_screen_position(
+				TimeLog2Hz( spectrum_tex_t1, std::log2( max_hz ) )
+			);
+
+			//DEBUG:
+			//min = song_box.min;
+			//max = song_box.max;
+
+			std::vector< SpectrumVertex > attribs{
+				{glm::vec2(min.x, min.y), glm::vec2(0.0f, std::log2(min_hz) ) },
+				{glm::vec2(min.x, max.y), glm::vec2(0.0f, std::log2(max_hz) ) },
+				{glm::vec2(max.x, min.y), glm::vec2(1.0f, std::log2(min_hz) ) },
+				{glm::vec2(max.x, max.y), glm::vec2(1.0f, std::log2(max_hz) ) }
+			};
+			glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+			glBufferData(GL_ARRAY_BUFFER, attribs.size() * sizeof(attribs[0]), attribs.data(), GL_STREAM_DRAW);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+			glUseProgram(spectrum_program->program);
+
+			glBindVertexArray(vertex_buffer_for_spectrum_program);
+
+			glBindTexture(GL_TEXTURE_2D, spectrum_tex);
+
+			glUniformMatrix4fv(spectrum_program->OBJECT_TO_CLIP_mat4, 1, GL_FALSE, glm::value_ptr(px_to_clip));
+
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, GLsizei(attribs.size()));
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+
+			glBindVertexArray(0);
+
+			glUseProgram(0);
+
+			GL_ERRORS();
+		}
+	}
+
+
 	{ //library list:
 		DrawLines draw(glm::mat4(
 			2.0f / kit::display.window_size.x, 0.0f, 0.0f, 0.0f,
@@ -286,6 +392,7 @@ void FreiScale::draw() {
 
 	}
 
+	/*
 	if (!show_sound.empty()) { //DEBUG: playback waveform
 		DrawLines draw(glm::mat4(
 			2.0f / float(show_sound.size()), 0.0f, 0.0f, 0.0f,
@@ -297,6 +404,7 @@ void FreiScale::draw() {
 			draw.draw( glm::vec2( i-1, show_sound[i-1].l ), glm::vec2( i, show_sound[i].l ), glm::u8vec4( 0x88, 0x88, 0x88, 0xff ) );
 		}
 	}
+	*/
 }
 
 struct MoveTriggerAction : public Action {
@@ -546,6 +654,23 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 						std::cout << "  analyzing..." << std::endl;
 						Sound temp = Sound::from_samples(buffer.data(), buffer.data() + buffer.size());
 						temp.compute_spectrums();
+
+						if (spectrum_tex == 0) glGenTextures(1, &spectrum_tex);
+						glBindTexture(GL_TEXTURE_2D, spectrum_tex);
+						glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SpectrumSize, temp.spectrums.size() / SpectrumSize, 0, GL_RED, GL_FLOAT, temp.spectrums.data());
+
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+						glGenerateMipmap(GL_TEXTURE_2D);
+
+						glBindTexture(GL_TEXTURE_2D, 0);
+
+						spectrum_tex_t0 = composition->loop_begin;
+						spectrum_tex_t1 = composition->loop_end;
 
 						std::cout << "  playing..." << std::endl;
 						std::vector< Output::Sample > preview;
