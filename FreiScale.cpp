@@ -281,13 +281,11 @@ void FreiScale::draw() {
 	//DEBUG: draw this over the grid:
 	{
 		if (spectrum_tex) {
-			float min_hz = 20.0f;
-			float max_hz = SampleRate / 2.0f;
 			glm::vec2 min = get_screen_position(
-				TimeLog2Hz( spectrum_tex_t0, std::log2( min_hz ) )
+				TimeLog2Hz( spectrum_tex_t0, std::log2( SpectrumMinFreq ) )
 			);
 			glm::vec2 max = get_screen_position(
-				TimeLog2Hz( spectrum_tex_t1, std::log2( max_hz ) )
+				TimeLog2Hz( spectrum_tex_t1, std::log2( SpectrumMaxFreq ) )
 			);
 
 			//DEBUG:
@@ -295,10 +293,10 @@ void FreiScale::draw() {
 			//max = song_box.max;
 
 			std::vector< SpectrumVertex > attribs{
-				{glm::vec2(min.x, min.y), glm::vec2(0.0f, std::log2(min_hz) ) },
-				{glm::vec2(min.x, max.y), glm::vec2(0.0f, std::log2(max_hz) ) },
-				{glm::vec2(max.x, min.y), glm::vec2(1.0f, std::log2(min_hz) ) },
-				{glm::vec2(max.x, max.y), glm::vec2(1.0f, std::log2(max_hz) ) }
+				{glm::vec2(min.x, min.y), glm::vec2(0.0f, 0.0f ) },
+				{glm::vec2(min.x, max.y), glm::vec2(1.0f, 0.0f ) },
+				{glm::vec2(max.x, min.y), glm::vec2(0.0f, 1.0f ) },
+				{glm::vec2(max.x, max.y), glm::vec2(1.0f, 1.0f ) }
 			};
 			glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
 			glBufferData(GL_ARRAY_BUFFER, attribs.size() * sizeof(attribs[0]), attribs.data(), GL_STREAM_DRAW);
@@ -657,7 +655,7 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 
 						if (spectrum_tex == 0) glGenTextures(1, &spectrum_tex);
 						glBindTexture(GL_TEXTURE_2D, spectrum_tex);
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SpectrumSize, temp.spectrums.size() / SpectrumSize, 0, GL_RED, GL_FLOAT, temp.spectrums.data());
+						glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SpectrumBins, temp.spectrums.size() / SpectrumBins, 0, GL_RED, GL_FLOAT, temp.spectrums.data());
 
 						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
