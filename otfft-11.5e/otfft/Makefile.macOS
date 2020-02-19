@@ -1,6 +1,6 @@
-CXX := $(notdir $(shell ls /opt/local/bin/clang++-* 2> /dev/null | tail -1))
+#CXX := $(notdir $(shell ls /opt/local/bin/clang++-* 2> /dev/null | tail -1))
 #CXX := clang++-mp-8.0
-#CXX := clang++
+CXX := clang++
 #CXX := g++-mp-9
 
 LIB := $(HOME)/lib
@@ -14,26 +14,26 @@ endif
 
 CXXFLAGS := -O3
 #CXXFLAGS += -Wa,-q# required: cd /opt/local/bin; sudo ln -s /usr/bin/clang
-#CXXFLAGS += -std=c++17
-CXXFLAGS += -std=c++14
+CXXFLAGS += -std=c++17
+#CXXFLAGS += -std=c++14
 #CXXFLAGS += -std=c++11
-CXXFLAGS += -march=native
+#CXXFLAGS += -march=native
 #CXXFLAGS += -mavx512f -mavx512dq
 #CXXFLAGS += -mavx2 -mfma
-#CXXFLAGS += -mavx
+CXXFLAGS += -mavx
 #CXXFLAGS += -msse2 -mfpmath=sse#+387
 #CXXFLAGS += -Xclang
-CXXFLAGS += -fopenmp
+#CXXFLAGS += -fopenmp
 CXXFLAGS += -funroll-loops
 #CXXFLAGS += -funroll-all-loops
 #CXXFLAGS += -ffast-math
 #CXXFLAGS += -malign-double
 #CXXFLAGS += -fomit-frame-pointer
 #CXXFLAGS += -ftree-vectorize
-#CXXFLAGS += -DDO_SINGLE_THREAD
+CXXFLAGS += -DDO_SINGLE_THREAD
 #CXXFLAGS += -DUSE_UNALIGNED_MEMORY
 
-LDLIBS := -L/opt/local/lib/libomp -lomp
+#LDLIBS := -L/opt/local/lib/libomp -lomp
 #LDLIBS := -L$(HOME)/lib -liomp5
 #LDLIBS := -lgomp
 

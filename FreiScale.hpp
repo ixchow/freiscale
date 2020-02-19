@@ -8,6 +8,7 @@
 #include <kit.hpp>
 
 struct Action {
+	virtual ~Action() { }
 	virtual void handle_event(SDL_Event const &) = 0;
 	virtual void draw() = 0;
 };

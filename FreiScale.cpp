@@ -447,7 +447,7 @@ struct MoveTriggerAction : public Action {
 
 		}
 	}
-	virtual void draw() {
+	virtual void draw() override {
 	}
 	FreiScale &fs;
 	Trigger &t;
@@ -499,7 +499,7 @@ struct MoveStepAction : public Action {
 			}
 		}
 	}
-	virtual void draw() {
+	virtual void draw() override {
 	}
 	FreiScale &fs;
 	Trigger &t;

@@ -24,7 +24,7 @@ CXXFLAGS += -malign-double
 CXXFLAGS += -DDO_SINGLE_THREAD
 #CXXFLAGS += -DUSE_UNALIGNED_MEMORY
 
-LDLIBS := -lgomp
+#LDLIBS := -lgomp
 #LDLIBS := -L$(LIB) -liomp5
 
 HEADERS1 := $(filter-out otfft_c.h, $(wildcard otfft_*.h))
