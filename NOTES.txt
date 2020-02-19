@@ -44,6 +44,47 @@ d / dx ( 2^{ax + b} )
 
 ----
 
+Analysis Thoughts:
+
+WANT: log(power) @ log2hz over the usable range in reasonable steps.
+
+Wikipedia: JND is about 10 cents (0.6%) which gives 1,400 steps over 16 to 16000 Hz
+ 1200 cents / octave => 120 JND steps per octave.
+ (says "1Hz steps below 500Hz", so 120 steps is overkill but okay)
+
+So let's go with that and ask for 128 divisions per octave, from 2^4 Hz (16Hz) to 2^15 Hz (32kHz). That's 1408 values.
+NOTE: at 48kHz we actually *can't* estimate 32kHz response. 20kHz would be fine. So call that 2^(14.3).
+
+We could also aim for 2048 log-distributed values from 20Hz to 20kHz... seems good.
+
+How do we get those values easily?
+
+FFT of N samples gives convolutions with waves with periods
+(DC "junk"), 1 / N, .., 1 / 2, (negative frequency "junk" which is complex conjugate)
+(k / ( N / S)) Hz
+k * (S / N) Hz
+
+So to get smaller steps, decrease sampling rate (counter-intuitive?) or increase window size.
+
+48kHz signal, compute a 2048 tap FFT, you get:
+
+48000 / 2048 = 23.4375 Hz steps up to 24kHz
+So that's good to about 1750/2048 = 7319Hz
+
+So 24000 / 2048 = 11.718 Hz steps up to 12kHz
+That's good to about 1530/2048 = 3485Hz
+
+Or 16000 / 2048 = 7.8125Hz steps up to 8kHz
+That's good to about 1410/2048 = 2325Hz
+
+Then 12000 / 2048 = 5.8459Hz up to 6kHz
+Then 6000 / 2048 = 2.929Hz up to 3kHz
+Then 3000 / 2048 = 1.4648Hz up to 1.5kHz (at ~915)
+
+
+
+----
+
 TODOs:
 
  - trigger step hovering / editing --> creating first step seems a bit broken

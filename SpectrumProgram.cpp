@@ -20,13 +20,7 @@ SpectrumProgram::SpectrumProgram() : GLProgram(
 		"in vec2 texCoord;\n"
 		"out vec4 fragColor;\n"
 		"void main() {\n"
-		"	float t = texCoord.x;\n"
-		"	float hz = exp2(texCoord.y);\n"
-		// (s * textureSize(tex,0).x) cycles per (textureSize(tex,0).x / 48000) seconds
-		// -> s * 48000 hz
-		"	float s = hz / 48000.0;\n" //hz -> texcoord is hmm. 
-		//"	s = gl_FragCoord.y / 720.0 * textureSize(tex,0).x;\n" //DEBUG
-		"	float p = log2(texture(tex, vec2(s, t)).r + 1.0);\n"
+		"	float p = log2(texture(tex, texCoord).r + 1.0);\n"
 		"	fragColor = vec4(p * 100.0, p * 1000.0, p * 10000.0, 1.0);\n"
 		"}\n"
 	) {

@@ -10,11 +10,15 @@
 //sample rate:
 constexpr uint32_t SampleRate = 48000;
 
-constexpr uint32_t SpectrumRate = 200; //spectrums per second
-constexpr uint32_t SpectrumStep = SampleRate / SpectrumRate; //sample offset between subsequent spectrums
-constexpr uint32_t SpectrumSize = (1 << 12); //spectrum is computed from this many samples
-
+constexpr uint32_t SpectrumRate = 100; //spectrums per second
 static_assert(SampleRate % SpectrumRate == 0, "Spectrums start on sample boundaries.");
+constexpr uint32_t SpectrumStep = SampleRate / SpectrumRate; //sample offset between subsequent spectrums
+
+//Spectrum stored with sound is log(power) in log2hz units.
+constexpr float SpectrumMinFreq = 20.0f;
+constexpr float SpectrumMaxFreq = 20000.0f;
+constexpr uint32_t SpectrumBins = 1500; //number of equal multiplicative steps in spectrum
+
 
 //individual sample:
 typedef float Sample;
