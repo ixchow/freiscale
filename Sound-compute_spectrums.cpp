@@ -1,10 +1,136 @@
 #include "Composition.hpp"
 
-#include "otfft/otfft.h"
-
 #include <cassert>
 #include <iostream>
 
+#define USE_FILTERBANK
+#ifdef USE_FILTERBANK
+
+void Sound::compute_spectrums() {
+	//Try using a sort of "gaussian filter bank" to compute spectrum bins.
+	//idea: compute gaussian (lowpass) with half-power at divisions in frequency, subtract to bandpass, locally sum for energy.
+	
+	auto downsample2 = [](std::vector< Sample > const &src) -> std::vector< Sample > {
+		std::vector< Sample > dst;
+		dst.reserve((src.size()+1)/2);
+		//downsample with 1 -> 0.25 0.5 0.25 kernel
+		for (uint32_t d = 0; d < (src.size()+1)/2; ++d) {
+			uint32_t s = 2*d;
+			float sum = 0.0f;
+			if (s - 1U < src.size()) sum += 0.25f * src[s-1U];
+			if (s < src.size()) sum += 0.5f * src[s];
+			if (s + 1U < src.size()) sum += 0.25f * src[s+1U];
+			dst.emplace_back(sum);
+		}
+		return dst;
+	};
+
+	//build a nicely smoothed pyramid, yo:
+	//n.b. could also use gaussians here. would prolly be better. oh well.
+	std::vector< std::vector< Sample > > pyramid;
+	pyramid.reserve(10);
+	pyramid.emplace_back(*this);
+	while (pyramid.size() < 10) {
+		pyramid.emplace_back(downsample2(pyramid.back()));
+	}
+
+
+	std::vector< std::vector< Sample > > filtered;
+	std::vector< uint32_t > levels;
+
+	filtered.reserve(SpectrumBins+1);
+
+	//float prefilter_sigma = SampleRate / (2.0f * M_PI * (SampleRate / 2.0f) / std::sqrt(2.0f * std::log( std::sqrt( 2.0f ) ) ));
+
+	for (uint32_t bin = 0; bin <= SpectrumBins; ++bin) {
+		float freq = std::exp2(bin / float(SpectrumBins) * (std::log2(SpectrumMaxFreq) - std::log2(SpectrumMinFreq)) + std::log2(SpectrumMinFreq));
+		//Wikipedia suggests this is going to be the half-power point 
+		float sigma_f = freq / std::sqrt(2.0f * std::log( std::sqrt( 2.0f ) ) );
+
+		//std::cout << "Freqency: " << freq << " -> sigma: " << sigma << " + " << prefilter_sigma << " = ";
+		//sigma = std::sqrt(sigma*sigma + prefilter_sigma*prefilter_sigma);
+		//std::cout << sigma << std::endl;
+
+		//TODO: kernel width reduction / downsampling!
+
+		float sigma, radius;
+		uint32_t l = -1U;
+		do {
+			++l;
+			sigma = (float(SampleRate) / float(1 << l)) / (2.0f * M_PI * sigma_f);
+			//radius in terms of threshold for smallest kernel value:
+			radius = std::sqrt( -(2.0f * sigma*sigma) * std::log(1e-6 * (std::sqrt(2.0f * M_PI) * sigma)) );
+		} while (radius > 5.0f && (l + 1 < pyramid.size()));
+
+		if (bin % 10 == 0) std::cout << "Freqency: " << freq << " -> sigma: " << sigma << " [" << std::ceil(radius) << "] @ " << (l+1) << "/" << pyramid.size() << std::endl;
+
+		std::vector< float > half_kernel(std::ceil(radius));
+		for (uint32_t i = 0; i < half_kernel.size(); ++i) {
+			half_kernel[i] = 1.0f / (std::sqrt(2.0f * M_PI) * sigma) * std::exp(-float(i)*float(i) / (2.0f * sigma*sigma));
+		}
+
+		std::vector< float > kernel;
+		kernel.reserve(2*half_kernel.size()-1);
+		kernel.insert(kernel.end(), half_kernel.rbegin(), half_kernel.rend());
+		kernel.insert(kernel.end(), half_kernel.begin()+1, half_kernel.end());
+
+
+		std::vector< Sample > const &samples = pyramid[l];
+
+		std::vector< Sample > out;
+		out.reserve(samples.size());
+
+		int32_t offset = -int32_t((kernel.size()-1)/2);
+
+		for (int32_t s = 0; s < int32_t(samples.size()); ++s) {
+			int32_t b = s + offset;
+			int32_t e = b + kernel.size();
+
+			int32_t sb = std::max(0, b);
+			int32_t se = std::min(e, int32_t(samples.size()));
+
+			double sum = 0.0;
+			for (int32_t i = sb; i < se; ++i) {
+				sum += kernel[i - b] * samples[i];
+			}
+			out.emplace_back(sum);
+		}
+
+		filtered.emplace_back(out);
+		levels.emplace_back(l);
+	}
+
+	assert(filtered.size() == SpectrumBins+1);
+	assert(levels.size() == filtered.size());
+
+	uint32_t spectrum_count = (this->size() + SpectrumStep-1) / SpectrumStep;
+	spectrums.assign(SpectrumBins * spectrum_count, 0.0f);
+
+	for (uint32_t bin = 0; bin <= SpectrumBins; ++bin) {
+		std::vector< Sample > const &above = filtered[bin+1];
+		std::vector< Sample > const &below = filtered[bin];
+
+		if (above.size() == below.size()) {
+			for (uint32_t s = 0; s < above.size(); ++s) {
+				//NOTE: does using squared amplitude interact badly with downsampling?
+				float amt = (above[s] - below[s]);
+				amt = amt*amt;
+				uint32_t spectrum = (s << levels[bin]) / SpectrumStep;
+				spectrums[spectrum * SpectrumBins + bin] += amt * (1 << levels[bin]); //<<--- if this approach is better, should transpose
+			}
+		} else {
+			//TODO: resamplin'
+		}
+
+	}
+
+}
+
+#endif //USE_FILTERBANK
+
+#ifdef USE_FFT
+
+#include "otfft/otfft.h"
 constexpr uint32_t FFTSize = 2048;
 
 void Sound::compute_spectrums() {
@@ -157,3 +283,5 @@ void Sound::compute_spectrums() {
 	std::cout << "Spectrum values in [" << min << ", " << max << "]." << std::endl;
 
 }
+
+#endif //USE_FFT
