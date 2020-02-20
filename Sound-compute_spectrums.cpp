@@ -44,6 +44,8 @@ void Sound::compute_spectrums() {
 
 	for (uint32_t bin = 0; bin <= SpectrumBins; ++bin) {
 		float freq = std::exp2(bin / float(SpectrumBins) * (std::log2(SpectrumMaxFreq) - std::log2(SpectrumMinFreq)) + std::log2(SpectrumMinFreq));
+
+		#ifdef USE_GAUSSIAN
 		//Wikipedia suggests this is going to be the half-power point 
 		float sigma_f = freq / std::sqrt(2.0f * std::log( std::sqrt( 2.0f ) ) );
 
@@ -68,6 +70,27 @@ void Sound::compute_spectrums() {
 		for (uint32_t i = 0; i < half_kernel.size(); ++i) {
 			half_kernel[i] = 1.0f / (std::sqrt(2.0f * M_PI) * sigma) * std::exp(-float(i)*float(i) / (2.0f * sigma*sigma));
 		}
+
+		#endif
+
+		#define USE_SINC
+		#ifdef USE_SINC
+
+		uint32_t l = -1U;
+		do {
+			++l;
+		} while (SampleRate / float(1 << l) > 5.0f * freq && l + 1 < pyramid.size());
+		float radius = 50.0f; //some ad-hoc radius
+		std::vector< float > half_kernel(std::ceil(radius));
+
+		if (bin % 10 == 0) std::cout << "Freqency: " << freq << " [" << std::ceil(radius) << "] @ " << (l+1) << "/" << pyramid.size() << std::endl;
+
+		for (uint32_t i = 0; i < half_kernel.size(); ++i) {
+			float t = float(i) / (float(SampleRate) / float(1 << l));
+			half_kernel[i] = std::sin(2.0f * M_PI * freq * t) / float(M_PI * t);
+		}
+
+		#endif
 
 		std::vector< float > kernel;
 		kernel.reserve(2*half_kernel.size()-1);
@@ -123,6 +146,14 @@ void Sound::compute_spectrums() {
 		}
 
 	}
+
+	float min = std::numeric_limits< float >::infinity();
+	float max = -std::numeric_limits< float >::infinity();
+	for (auto &s : spectrums) {
+		min = std::min(min, s);
+		max = std::max(max, s);
+	}
+	std::cout << "Spectrum values in [" << min << ", " << max << "]." << std::endl;
 
 }
 
