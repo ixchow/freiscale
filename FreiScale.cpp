@@ -124,6 +124,50 @@ void FreiScale::draw() {
 		-1.0f, -1.0f, 0.0f, 1.0f
 	);
 
+	//DEBUG: draw this under the grid:
+	{
+		if (spectrum_tex) {
+			glm::vec2 min = get_screen_position(
+				TimeLog2Hz( spectrum_tex_t0, std::log2( SpectrumMinFreq ) )
+			);
+			glm::vec2 max = get_screen_position(
+				TimeLog2Hz( spectrum_tex_t1, std::log2( SpectrumMaxFreq ) )
+			);
+
+			//DEBUG:
+			//min = song_box.min;
+			//max = song_box.max;
+
+			std::vector< SpectrumVertex > attribs{
+				{glm::vec2(min.x, min.y), glm::vec2(0.0f, 0.0f ) },
+				{glm::vec2(min.x, max.y), glm::vec2(1.0f, 0.0f ) },
+				{glm::vec2(max.x, min.y), glm::vec2(0.0f, 1.0f ) },
+				{glm::vec2(max.x, max.y), glm::vec2(1.0f, 1.0f ) }
+			};
+			glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+			glBufferData(GL_ARRAY_BUFFER, attribs.size() * sizeof(attribs[0]), attribs.data(), GL_STREAM_DRAW);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+			glUseProgram(spectrum_program->program);
+
+			glBindVertexArray(vertex_buffer_for_spectrum_program);
+
+			glBindTexture(GL_TEXTURE_2D, spectrum_tex);
+
+			glUniformMatrix4fv(spectrum_program->OBJECT_TO_CLIP_mat4, 1, GL_FALSE, glm::value_ptr(px_to_clip));
+
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, GLsizei(attribs.size()));
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+
+			glBindVertexArray(0);
+
+			glUseProgram(0);
+
+			GL_ERRORS();
+		}
+	}
+
 	{ //song box:
 		DrawLines draw(px_to_clip);
 
@@ -278,49 +322,7 @@ void FreiScale::draw() {
 	}
 
 
-	//DEBUG: draw this over the grid:
-	{
-		if (spectrum_tex) {
-			glm::vec2 min = get_screen_position(
-				TimeLog2Hz( spectrum_tex_t0, std::log2( SpectrumMinFreq ) )
-			);
-			glm::vec2 max = get_screen_position(
-				TimeLog2Hz( spectrum_tex_t1, std::log2( SpectrumMaxFreq ) )
-			);
 
-			//DEBUG:
-			//min = song_box.min;
-			//max = song_box.max;
-
-			std::vector< SpectrumVertex > attribs{
-				{glm::vec2(min.x, min.y), glm::vec2(0.0f, 0.0f ) },
-				{glm::vec2(min.x, max.y), glm::vec2(1.0f, 0.0f ) },
-				{glm::vec2(max.x, min.y), glm::vec2(0.0f, 1.0f ) },
-				{glm::vec2(max.x, max.y), glm::vec2(1.0f, 1.0f ) }
-			};
-			glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-			glBufferData(GL_ARRAY_BUFFER, attribs.size() * sizeof(attribs[0]), attribs.data(), GL_STREAM_DRAW);
-			glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-			glUseProgram(spectrum_program->program);
-
-			glBindVertexArray(vertex_buffer_for_spectrum_program);
-
-			glBindTexture(GL_TEXTURE_2D, spectrum_tex);
-
-			glUniformMatrix4fv(spectrum_program->OBJECT_TO_CLIP_mat4, 1, GL_FALSE, glm::value_ptr(px_to_clip));
-
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, GLsizei(attribs.size()));
-
-			glBindTexture(GL_TEXTURE_2D, 0);
-
-			glBindVertexArray(0);
-
-			glUseProgram(0);
-
-			GL_ERRORS();
-		}
-	}
 
 
 	{ //library list:

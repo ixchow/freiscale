@@ -37,7 +37,7 @@ struct FreiScale : kit::Mode {
 	std::vector< std::pair< UIBox, Sound const * > > library_sound_boxes;
 
 	UIBox song_box;
-	TimeLog2Hz song_center = TimeLog2Hz(8.0f, 0.0f);
+	TimeLog2Hz song_center = TimeLog2Hz(8.0f, 2.5f);
 	TimeLog2Hz song_radius = TimeLog2Hz(8.5f, 2.5f);
 
 	glm::vec2 mouse = glm::vec2(0.0f, 0.0f); //in layout pixels

@@ -35,6 +35,7 @@ struct TimeLog2Hz {
 //Sounds are lists of Samples @ (by default) SampleRate:
 struct Sound : std::vector< Sample > {
 	//TODO: autocorrelation info (Log2Hz vs time curves for vis/snapping)
+	float fundamental = 440.0f;
 
 	std::vector< float > spectrums;
 	void compute_spectrums();
@@ -52,15 +53,19 @@ struct Trigger {
 	//TODO: panning? loudness?
 
 	Time length() const {
-		Time remain = (sound ? Time(sound->size()) : Time(0)) / Time(SampleRate);
+		if (!sound) return Time(0);
+
+		Time remain = Time(sound->size()) / Time(SampleRate);
 		Time used = 0.0f;
+
+		Log2Hz offset_p = -std::log2(sound->fundamental);
 		for (uint32_t s = 0; s < steps.size(); ++s) {
 			if (steps[s].t <= 0.0f) continue;
 			//speed = 2^(ax+b) = 2^b * (2^a)^x = 2^b * e^(log(2)ax)
 			//position = \int_0^t speed = 2^b / (log(2)a) * ( e^(log(2)ax) - e^(0) )
 			//position = 2^b / (log(2)a) * ( e^(log(2)ax) - 1 )
-			float p0 = (s == 0 ? start.p : steps[s-1].p);
-			float p1 = steps[s].p;
+			float p0 = (s == 0 ? start.p : steps[s-1].p) + offset_p;
+			float p1 = steps[s].p + offset_p;
 			float dt = steps[s].t;
 
 			float a = (p1 - p0) / dt;
@@ -74,7 +79,7 @@ struct Trigger {
 			if (remain <= 0.0f) return used;
 		}
 
-		float p = (steps.empty() ? start.p : steps.back().p);
+		float p = (steps.empty() ? start.p : steps.back().p) + offset_p;
 		return used + remain / std::exp2(p);
 	}
 

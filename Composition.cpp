@@ -51,12 +51,14 @@ void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< 
 		std::vector< float > samples;
 		float length = t.sound->size() / Time(SampleRate);
 
+		Log2Hz offset_p = -std::log2(t.sound->fundamental);
+
 		float t0 = 0.0f;
 		float pos = 0.0f;
 		for (uint32_t s = 0; s < t.steps.size(); ++s) {
 			if (t.steps[s].t <= 0.0f) continue;
-			float p0 = (s == 0 ? t.start.p : t.steps[s-1].p);
-			float p1 = t.steps[s].p;
+			float p0 = (s == 0 ? t.start.p : t.steps[s-1].p) + offset_p;
+			float p1 = t.steps[s].p + offset_p;
 			float t1 = t0 + t.steps[s].t;
 
 			//ax + b == (p1 - p0) / (t1 - t0) * x + p0
@@ -81,7 +83,7 @@ void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< 
 		}
 
 		if (samples.empty() || samples.back() < length) { //deal with tail:
-			float p = (t.steps.empty() ? t.start.p : t.steps.back().p);
+			float p = (t.steps.empty() ? t.start.p : t.steps.back().p) + offset_p;
 			do {
 				float x = first_sample_time + (samples.size() / Time(SampleRate));
 				samples.emplace_back(
