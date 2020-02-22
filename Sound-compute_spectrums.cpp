@@ -2,10 +2,132 @@
 
 #include <cassert>
 #include <iostream>
+#include <complex>
 
-#define USE_FILTERBANK
+
+#ifdef USE_CONVOLVE
+void Sound::compute_spectrums() {
+	//Try using convolution with a "generic impulse" at each target frequency.
+	
+	auto downsample2 = [](std::vector< Sample > const &src) -> std::vector< Sample > {
+		std::vector< Sample > dst;
+		dst.reserve((src.size()+1)/2);
+		//downsample with 1 -> 0.25 0.5 0.25 kernel
+		for (uint32_t d = 0; d < (src.size()+1)/2; ++d) {
+			uint32_t s = 2*d;
+			float sum = 0.0f;
+			if (s - 1U < src.size()) sum += 0.25f * src[s-1U];
+			if (s < src.size()) sum += 0.5f * src[s];
+			if (s + 1U < src.size()) sum += 0.25f * src[s+1U];
+			dst.emplace_back(sum);
+		}
+		return dst;
+	};
+
+	//build a nicely smoothed pyramid, yo:
+	//n.b. could also use gaussians here. would prolly be better. oh well.
+	std::vector< std::vector< Sample > > pyramid;
+	pyramid.reserve(10);
+	pyramid.emplace_back(*this);
+	while (pyramid.size() < 10) {
+		pyramid.emplace_back(downsample2(pyramid.back()));
+	}
+
+	std::vector< std::vector< Sample > > filtered;
+	std::vector< uint32_t > levels;
+
+	filtered.reserve(SpectrumBins);
+
+	//float prefilter_sigma = SampleRate / (2.0f * M_PI * (SampleRate / 2.0f) / std::sqrt(2.0f * std::log( std::sqrt( 2.0f ) ) ));
+
+	for (uint32_t bin = 0; bin < SpectrumBins; ++bin) {
+		float min_freq = std::exp2(bin / float(SpectrumBins) * (std::log2(SpectrumMaxFreq) - std::log2(SpectrumMinFreq)) + std::log2(SpectrumMinFreq));
+		float max_freq = std::exp2((bin + 1) / float(SpectrumBins) * (std::log2(SpectrumMaxFreq) - std::log2(SpectrumMinFreq)) + std::log2(SpectrumMinFreq));
+
+		float freq = 0.5f * (max_freq + min_freq);
+
+		float wavelength, sigma, radius;
+		uint32_t l = -1U;
+		do {
+			++l;
+			wavelength = (float(SampleRate) / float(1 << l)) / freq;
+			//sigma set relative to wavelength (sure, why not?)
+			sigma = 0.5f * (8 * wavelength);
+			//radius in terms of threshold for smallest kernel value:
+			radius = 6.0f * wavelength; //std::sqrt( -(2.0f * sigma*sigma) * std::log(1e-6 * (std::sqrt(2.0f * M_PI) * sigma)) );
+		} while (wavelength > 16.0f && (l + 1 < pyramid.size()));
+
+		if (bin % 10 == 0) std::cout << "Freqency: " << freq << " -> wavelength: " << wavelength << " -> sigma: " << sigma << " [" << std::ceil(radius) << "] @ " << (l+1) << "/" << pyramid.size() << std::endl;
+
+		std::vector< std::complex< float > > kernel(std::ceil(radius));
+		for (uint32_t i = 0; i < kernel.size(); ++i) {
+			float g = 1.0f / (std::sqrt(2.0f * M_PI) * sigma) * std::exp(-float(i)*float(i) / (2.0f * sigma*sigma));
+			g = std::exp2(-(i / wavelength));
+			float a = std::sin(float(2.0f * M_PI) / wavelength) * i;
+			kernel[i].real(g * std::sin(a));
+			kernel[i].imag(g * std::cos(a));
+		}
+
+		std::vector< Sample > const &samples = pyramid[l];
+
+		std::vector< Sample > out;
+		out.reserve(samples.size());
+
+		for (int32_t s = 0; s < int32_t(samples.size()); ++s) {
+			int32_t b = s;
+			int32_t e = b + kernel.size();
+
+			int32_t sb = std::max(0, b);
+			int32_t se = std::min(e, int32_t(samples.size()));
+
+			std::complex< double > sum = 0.0;
+			for (int32_t i = sb; i < se; ++i) {
+				sum += kernel[i - b] * samples[i];
+			}
+			out.emplace_back(std::norm(sum));
+		}
+
+		filtered.emplace_back(out);
+		levels.emplace_back(l);
+	}
+
+	assert(filtered.size() == SpectrumBins);
+	assert(levels.size() == filtered.size());
+
+	uint32_t spectrum_count = (this->size() + SpectrumStep-1) / SpectrumStep;
+	spectrums.assign(SpectrumBins * spectrum_count, 0.0f);
+
+	for (uint32_t bin = 0; bin < SpectrumBins; ++bin) {
+		std::vector< Sample > const &result = filtered[bin];
+
+		for (uint32_t s = 0; s < result.size(); ++s) {
+			//NOTE: does using squared amplitude interact badly with downsampling?
+			float amt = result[s];
+			amt *= (1 << levels[bin]);
+			uint32_t spectrum = (s << levels[bin]) / SpectrumStep;
+			spectrums[spectrum * SpectrumBins + bin] += amt; //<<--- if this approach is better, should transpose
+		}
+
+	}
+
+	float min = std::numeric_limits< float >::infinity();
+	float max = -std::numeric_limits< float >::infinity();
+	for (auto &s : spectrums) {
+		min = std::min(min, s);
+		max = std::max(max, s);
+	}
+	std::cout << "Spectrum values in [" << min << ", " << max << "]." << std::endl;
+	for (auto &s : spectrums) {
+		s = (s - min) / (max - min);
+	}
+
+}
+
+#endif //USE_CONVOLVE
+
+
+
 #ifdef USE_FILTERBANK
-
 void Sound::compute_spectrums() {
 	//Try using a sort of "gaussian filter bank" to compute spectrum bins.
 	//idea: compute gaussian (lowpass) with half-power at divisions in frequency, subtract to bandpass, locally sum for energy.
@@ -45,6 +167,7 @@ void Sound::compute_spectrums() {
 	for (uint32_t bin = 0; bin <= SpectrumBins; ++bin) {
 		float freq = std::exp2(bin / float(SpectrumBins) * (std::log2(SpectrumMaxFreq) - std::log2(SpectrumMinFreq)) + std::log2(SpectrumMinFreq));
 
+		#define USE_GAUSSIAN
 		#ifdef USE_GAUSSIAN
 		//Wikipedia suggests this is going to be the half-power point 
 		float sigma_f = freq / std::sqrt(2.0f * std::log( std::sqrt( 2.0f ) ) );
@@ -73,7 +196,6 @@ void Sound::compute_spectrums() {
 
 		#endif
 
-		#define USE_SINC
 		#ifdef USE_SINC
 
 		uint32_t l = -1U;
@@ -159,6 +281,8 @@ void Sound::compute_spectrums() {
 
 #endif //USE_FILTERBANK
 
+
+#define USE_FFT
 #ifdef USE_FFT
 
 #include "otfft/otfft.h"
@@ -240,12 +364,17 @@ void Sound::compute_spectrums() {
 				x[s] = 0.0;
 			}
 
+			//TEST: let's just remove a bunch of frequency content, eh?
+			for (uint32_t s = FFTSize/2; s < FFTSize; ++s) {
+				x[s] = 0.0;
+			}
+
 			//transform:
-			rfft.fwd(x.p, y.p);
+			rfft.fwd0(x.p, y.p);
 
 			//convert to power:
 			for (uint32_t s = 0; s < FFTSize; ++s) {
-				x[s] = (y[s].Re * y[s].Re + y[s].Im * y[s].Im);
+				x[s] = std::sqrt(y[s].Re * y[s].Re + y[s].Im * y[s].Im);
 			}
 
 			//copy to bins:
@@ -312,6 +441,11 @@ void Sound::compute_spectrums() {
 		max = std::max(max, s);
 	}
 	std::cout << "Spectrum values in [" << min << ", " << max << "]." << std::endl;
+
+	for (auto &s : spectrums) {
+		s = (s - min) / (max - min);
+	}
+
 
 }
 

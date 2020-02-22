@@ -23,7 +23,7 @@ namespace {
 
 std::vector< Output::Sample > Output::playing_data;
 uint32_t Output::playing_position = 0;
-float Output::volume = 1.0f;
+float Output::volume = 0.5f;
 
 
 //This audio-mixing callback is defined below:
@@ -87,14 +87,20 @@ void mix_audio(void *, Uint8 *buffer_, int len) {
 	assert(len == MIX_SAMPLES * sizeof(Output::Sample)); //should always have the expected number of samples
 	Output::Sample *buffer = reinterpret_cast< Output::Sample * >(buffer_);
 
-	uint32_t to_copy = std::min< uint32_t >(Output::playing_data.size() - Output::playing_position, MIX_SAMPLES);
-	if (to_copy > 0) {
-		memcpy(buffer, &Output::playing_data[Output::playing_position], MIX_SAMPLES * sizeof(Output::Sample));
-		Output::playing_position += to_copy;
+	uint32_t begin = Output::playing_position;
+	uint32_t end = std::min< uint32_t >(begin + MIX_SAMPLES, Output::playing_data.size());
+	begin = std::min(begin, end);
+
+	for (uint32_t i = begin; i < end; ++i) {
+		buffer[i-begin].l = Output::volume * Output::playing_data[i].l;
+		buffer[i-begin].r = Output::volume * Output::playing_data[i].r;
 	}
-	if (to_copy < MIX_SAMPLES) {
-		memset(buffer + to_copy, 0, (MIX_SAMPLES - to_copy) * sizeof(Output::Sample));
+
+	uint32_t written = end - begin;
+	if (written < MIX_SAMPLES) {
+		memset(buffer + written, 0, (MIX_SAMPLES - written) * sizeof(Output::Sample));
 	}
+	Output::playing_position += written;
 }
 
 

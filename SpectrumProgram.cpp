@@ -21,7 +21,7 @@ SpectrumProgram::SpectrumProgram() : GLProgram(
 		"out vec4 fragColor;\n"
 		"void main() {\n"
 		"	float p = log2(texture(tex, texCoord).r + 1.0);\n"
-		"	fragColor = vec4(p * 100.0, p * 1000.0, p * 10000.0, 1.0);\n"
+		"	fragColor = vec4(p * 1.0, p * 10.0, p * 100.0, 1.0);\n"
 		"}\n"
 	) {
 
