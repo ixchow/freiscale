@@ -6,9 +6,11 @@ SubInclude TOP kit ;
 MySubDir TOP ;
 
 local NAMES =
+	DrawStuff.cpp
 	FreiScale.cpp
 	SpectrumProgram.cpp
-	Sound-compute_spectrums.cpp
+	Sound-viz.cpp
+	#Sound-compute_spectrums.cpp
 	Composition.cpp
 	Sound.cpp
 	Library.cpp
@@ -25,6 +27,7 @@ OTFFT_DIR = otfft-11.5e ;
 
 ObjectC++Flags $(NAMES) : -mavx ; #match otfft.o flags
 ObjectC++Flags Sound-compute_spectrums.cpp : -I$(OTFFT_DIR) ;
+ObjectC++Flags Sound-viz.cpp : -I$(OTFFT_DIR) ;
 
 MyObjects $(NAMES) ;
 

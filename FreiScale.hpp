@@ -34,7 +34,7 @@ struct FreiScale : kit::Mode {
 
 	//set during drawing:
 	std::vector< std::pair< UIBox, Folder const * > > library_folder_boxes;
-	std::vector< std::pair< UIBox, Sound const * > > library_sound_boxes;
+	std::vector< std::pair< UIBox, Sound * > > library_sound_boxes;
 
 	UIBox song_box;
 	TimeLog2Hz song_center = TimeLog2Hz(2.0f, 9.0f);
@@ -57,7 +57,7 @@ struct FreiScale : kit::Mode {
 
 	struct {
 		Folder const *library_folder = nullptr;
-		Sound const *library_sound = nullptr;
+		Sound *library_sound = nullptr;
 		std::pair< Trigger *, uint32_t > song_trigger_handle = std::make_pair(nullptr, 0U); //NOTE: 0 is the 'start' handle, 1 - N the 'step' handles
 		std::pair< Trigger *, uint32_t > song_trigger_segment = std::make_pair(nullptr, 0U); //NOTE: 0 is the segment from the start to the first step
 		void clear() {

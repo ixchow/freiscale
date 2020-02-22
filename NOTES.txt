@@ -28,6 +28,18 @@ Usage:
 
 
 
+d/dx c * 2^{ax+b}
+ = c * a * ln(2) * 2^{ax + b}
+
+d/dx (1/(a*ln(2))) * 2^{ax + b}
+ = 2^{ax+b}
+
+a^-1
+ = 2^{log2(1/a)}
+ = 2^{-log2(a)}
+
+(1/(a*ln(2))) * 2^{ax + b}
+ = 1/ln(2) * 2^{ax + b - log2(a)}
 
 Explicit integration:
 

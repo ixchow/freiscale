@@ -1,6 +1,7 @@
 #include "FreiScale.hpp"
 
 #include "DrawLines.hpp"
+#include "DrawStuff.hpp"
 #include "Output.hpp"
 #include "SpectrumProgram.hpp"
 
@@ -168,9 +169,8 @@ void FreiScale::draw() {
 		}
 	}
 
-	{ //song box:
+	{ //song box background:
 		DrawLines draw(px_to_clip);
-
 			
 		{ //pitch scale grid:
 			int32_t major = 10;
@@ -214,13 +214,18 @@ void FreiScale::draw() {
 			draw_marker( composition->loop_begin, glm::u8vec4( 0xff, 0x00, 0x88, 0xff ) );
 			draw_marker( composition->loop_end, glm::u8vec4( 0x88, 0x00, 0x44, 0xff ) );
 		}
+	}
 
-
-
+	{ //song box triggers:
+		std::vector< DrawStuff::Pos2f_Col4ub > lines;
+		std::vector< DrawStuff::Pos2f_Col4ub > points;
 	
-
 		//Triggers:
 		for (auto const &t : composition->triggers) {
+			float sample_length = Time(t.sound ? t.sound->size() : 0) / Time(SampleRate);
+			uint32_t peaks_count = (t.sound ? t.sound->peaks.size() : 0) / PeaksSlots;
+
+			float offset_p = (t.sound ? -std::log2( t.sound->fundamental ) : 0.0f );
 
 			{ //show sample line:
 				glm::u8vec4 color = glm::u8vec4(0xaa, 0xcc, 0xbb, 0xff);
@@ -229,56 +234,102 @@ void FreiScale::draw() {
 
 				TimeLog2Hz at = t.start;
 				glm::vec2 px = get_screen_position(at);
-				draw.draw( px + glm::vec2(0.0f, -0.5f * Height), px + glm::vec2(0.0f, 0.5f * Height), color );
+				lines.emplace_back( px + glm::vec2(0.0f, -0.5f * Height), color);
+				lines.emplace_back( px + glm::vec2(0.0f, 0.5f * Height), color );
 
-				float remain = Time(t.sound ? t.sound->size() : 0) / Time(SampleRate);
+				std::vector< TimeLog2Hz > warped_peaks;
+				warped_peaks.reserve(peaks_count);
 
+				auto warp_peaks = [&warped_peaks,&peaks_count,&offset_p](TimeLog2Hz tp0, TimeLog2Hz tp1, float s0) {
+					//draw peaks from tp0 to tp1 given sample time s0:
+
+					float p0 = tp0.p;
+					float p1 = tp1.p;
+					if (p1 == p0) p1 += 1e-3;
+					float t0 = tp0.t;
+					float t1 = tp1.t;
+
+					float a = (p1 - p0) / (t1 - t0);
+					float b = p0 + offset_p;
+
+					
+					//float len = std::exp2( b ) / (std::log(2.0f) * a) * (std::exp2( a * (t1-t0) ) - 1.0f);
+
+					//std::cout << "[" << t0 << " - " << t1 << "] => " << p0 << " - " << p1 << " ==> " << len << std::endl; //DEBUG
+
+					while (warped_peaks.size() < peaks_count) {
+						float ds = warped_peaks.size() / float(PeaksRate) - s0;
+						float t = std::log2( ds * ( (std::log(2.0f) * a) / std::exp2( b ) ) + 1.0f ) / a;
+						//std::cout << "ds: " << ds << " -> t " << t << " of " << len << std::endl;
+						if (t > t1 - t0) break;
+						warped_peaks.emplace_back(t0 + t, a * t + b);
+					}
+				};
+
+				float play_t = 0.0f;
 
 				for (uint32_t s = 0; s < t.steps.size(); ++s) {
-					float p0 = (s == 0 ? t.start.p : t.steps[s-1].p);
-					float p1 = t.steps[s].p;
+					TimeLog2Hz next = t.steps[s];
+					next.t += at.t;
+					glm::vec2 next_px = get_screen_position(next);
+
+					if (next.t == at.t) {
+						at = next;
+						px = next_px;
+						continue;
+					}
+
+					warp_peaks(at, next, play_t);
+
+					//draw line:
+
+					float p0 = at.p;
+					float p1 = next.p;
 					float dt = t.steps[s].t;
 
 					float a = (p1 - p0) / dt;
-					float b = p0;
+					float b = p0 + offset_p;
 
 					float len = std::exp2( b ) / (std::log(2.0f) * a) * (std::exp2( a * dt ) - 1.0f);
 
-
-					//TODO: figure out if sample lasts for entire segment...
-					TimeLog2Hz next = at;
-					next.t += dt;
-					next.p = p1;
-					glm::vec2 next_px = get_screen_position(next);
-
-					if (len < remain) {
-						remain -= len;
-
-						draw.draw( px, next_px, color );
-					} else if (remain > 0.0f) {
-						//remain terminates somewhere in here!
-						//TODO: do a two-color line to indicate where sample ends
-
+					if (play_t > sample_length) {
+						//already done
+						lines.emplace_back( px, color_dim );
+						lines.emplace_back( next_px, color_dim );
+					} else if (play_t + len > sample_length) {
+						//going to finish in here
+						//TODO: fancy hard edge
+						lines.emplace_back( px, color );
+						lines.emplace_back( next_px, color_dim );
 					} else {
-						//remain already terminated
-						draw.draw( px, next_px, color_dim );
+						//not going to finish in this segment
+						lines.emplace_back( px, color );
+						lines.emplace_back( next_px, color );
 					}
 
+					//update playback position etc:
+
+					play_t += len;
 					at = next;
 					px = next_px;
 				}
 
 				float tail_px = 0.0f;
-				if (remain > 0.0f) {
+				if (play_t < sample_length) {
+
 					float p = (t.steps.empty() ? t.start.p : t.steps.back().p);
 					TimeLog2Hz next = at;
-					next.t += remain / std::exp2( p );
+					next.t += (sample_length - play_t) / std::exp2( p + offset_p );
 					glm::vec2 next_px = get_screen_position(next);
+
+					warp_peaks(at, next, play_t);
 
 					tail_px = next_px.x - px.x;
 
-					draw.draw( px, next_px, color );
-					draw.draw( next_px + glm::vec2(0.0f, -0.5f * Height), next_px + glm::vec2(0.0f, 0.5f * Height), color );
+					lines.emplace_back( px, color );
+					lines.emplace_back( next_px, color );
+					lines.emplace_back( next_px + glm::vec2(0.0f, -0.5f * Height), color );
+					lines.emplace_back( next_px + glm::vec2(0.0f, 0.5f * Height), color );
 					
 					px = next_px;
 				}
@@ -286,10 +337,49 @@ void FreiScale::draw() {
 				if (tail_px < 20.0f) {
 					glm::vec2 next_px = px;
 					next_px.x += (20.0f - tail_px);
-					draw.draw( px, next_px, color_dim );
+					lines.emplace_back( px, color_dim );
+					lines.emplace_back( next_px, color_dim );
 				}
 
-				//TODO: draw enough of a tail to grab
+				//peaks:
+				for (uint32_t peak = 0; peak < warped_peaks.size(); ++peak) {
+					std::pair< float, float > const *slots = &(t.sound->peaks[PeaksSlots * peak]);
+					for (uint32_t s = 0; s < PeaksSlots; ++s) {
+						if (slots[s].first <= 0.0f) continue;
+						//std::cout << slots[s].first << "/" << warped_peaks[peak].t << "/" << warped_peaks[peak].p << std::endl;
+						glm::u8vec4 color = glm::u8vec4(0xff, 0xff, 0xff, 0xff);
+						points.emplace_back(
+							get_screen_position(
+								TimeLog2Hz(
+									warped_peaks[peak].t,
+									glm::log2(slots[s].first) + warped_peaks[peak].p
+								)
+							),
+							color
+						);
+					}
+				}
+				/*
+				//peaks (DEBUG):
+				for (uint32_t i = 0; i < peaks_count; ++i) {
+					float t0 = t.start.t + i / float(PeaksRate);
+					float t1 = t.start.t + (i+1) / float(PeaksRate);
+					std::pair< float, float > const *slots = &(t.sound->peaks[PeaksSlots * i]);
+					for (uint32_t pi = 0; pi < PeaksSlots; ++pi) {
+						if (slots[pi].second == 0.0f) continue;
+						lines.emplace_back(
+							get_screen_position(TimeLog2Hz( t0, std::log2(slots[pi].first) )),
+							glm::u8vec4(0xff, 0x00, 0xff, 0xff)
+						);
+						lines.emplace_back(
+							get_screen_position(TimeLog2Hz( t1, std::log2(slots[pi].first) )),
+							glm::u8vec4(0xff, 0x00, 0xff, 0xff)
+						);
+						if (i == 1) std::cout << " | " << slots[i].first << "/" << slots[i].second;
+					}
+					if (i == 1) std::cout << std::endl;
+				}
+				*/
 			}
 
 			{ //outline handles:
@@ -306,17 +396,22 @@ void FreiScale::draw() {
 
 				glm::vec2 px = get_screen_position(at);
 				for (uint32_t i = 0; i < box.size(); ++i) {
-					draw.draw( px + box[i], px + box[(i+1)%box.size()], color );
+					lines.emplace_back( px + box[i], color );
+					lines.emplace_back( px + box[(i+1)%box.size()], color );
 				}
 				for (uint32_t s = 0; s < t.steps.size(); ++s) {
 					at.t += t.steps[s].t;
 					at.p = t.steps[s].p;
 					px = get_screen_position(at);
 					for (uint32_t i = 0; i < box.size(); ++i) {
-						draw.draw( px + box[i], px + box[(i+1)%box.size()], color );
+						lines.emplace_back( px + box[i], color );
+						lines.emplace_back( px + box[(i+1)%box.size()], color );
 					}
 				}
 			}
+
+			DrawStuff::draw(px_to_clip, GL_POINTS, points);
+			DrawStuff::draw(px_to_clip, GL_LINES, lines);
 
 		}
 	}
@@ -358,8 +453,8 @@ void FreiScale::draw() {
 			}
 		};
 
-		std::function< void(uint32_t, Folder const &) > draw_folder;
-		draw_folder = [&](uint32_t depth, Folder const &folder) {
+		std::function< void(uint32_t, Folder &) > draw_folder;
+		draw_folder = [&](uint32_t depth, Folder &folder) {
 			for (auto &[name, sub] : folder.folders) {
 				//draw name...
 				std::string draw_name;
@@ -545,6 +640,9 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 		} else if (library_box.contains(mouse)) {
 			//------ library interactions -----
 			if (hovered.library_sound) {
+				if (hovered.library_sound->peaks.empty()) {
+					hovered.library_sound->compute_viz();
+				}
 				if (evt.button.button == SDL_BUTTON_LEFT) {
 					std::cout << "~~~Select Sound!~~~" << std::endl;
 					if (hovered.library_sound) {
@@ -651,6 +749,7 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 						std::vector< Sample > buffer;
 						composition->render(loop_begin, loop_end, &buffer);
 
+/*
 						std::cout << "  analyzing..." << std::endl;
 						Sound temp = Sound::from_samples(buffer.data(), buffer.data() + buffer.size());
 						temp.compute_spectrums();
@@ -671,6 +770,7 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 
 						spectrum_tex_t0 = composition->loop_begin;
 						spectrum_tex_t1 = composition->loop_end;
+*/
 
 						std::cout << "  playing..." << std::endl;
 						std::vector< Output::Sample > preview;

@@ -42,8 +42,12 @@ std::shared_ptr< kit::Mode > kit_mode() {
 	auto fs = std::make_shared< FreiScale >(library_path);
 
 	if (do_fss) {
+		//std::cout << "I guess we don't do this any more :-(" << std::endl;
 		//build spectrums:
 		fs->library.foreach_sound([](std::string const &path, Sound &sound) {
+			std::cout << path << std::endl;
+			sound.compute_viz();
+			/*
 			auto dot = path.rfind('.');
 			std::string out_path = path.substr(0,dot) + ".fss";
 			std::cout << path << " -> " << out_path << std::endl;
@@ -63,6 +67,7 @@ std::shared_ptr< kit::Mode > kit_mode() {
 			}
 			assert(data.size() == sound.spectrums.size());
 			save_png(out_path + ".png", SpectrumBins, data.size() / SpectrumBins, reinterpret_cast< uint32_t const * >(data.data()), UpperLeftOrigin);
+			*/
 
 		});
 		return nullptr;

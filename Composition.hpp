@@ -19,8 +19,10 @@ constexpr float SpectrumMinFreq = 20.0f;
 constexpr float SpectrumMaxFreq = 20000.0f;
 constexpr uint32_t SpectrumBins = 2000; //number of equal multiplicative steps in spectrum
 
-constexpr uint32_t PeakRate = 100; //peaks per second
-constexpr uint32_t PeakCount = 20; //peaks to retain per sample
+constexpr uint32_t PeaksRate = 100; //peaks per second
+constexpr uint32_t PeaksSlots = 20; //peaks to retain per sample
+static_assert(SampleRate % PeaksRate == 0, "Peaks frames should start on sample boundaries.");
+constexpr uint32_t PeaksStep = SampleRate / PeaksRate; //sample offset between subsequent peaks computations
 
 
 //individual sample:
@@ -37,13 +39,14 @@ struct TimeLog2Hz {
 
 //Sounds are lists of Samples @ (by default) SampleRate:
 struct Sound : std::vector< Sample > {
-	//TODO: autocorrelation info (Log2Hz vs time curves for vis/snapping)
+
+	//visualization/UI stuff:
+	//sound handles are shown at this frequency:
 	float fundamental = 440.0f;
+	//sound is drawn using points at peaks rectangular array of PeaksSlots x (length + PeaksStep-1) / PeaksStep values
+	std::vector< std::pair< float, float > > peaks; //(frequency, power)
 
-	std::vector< float > spectrums;
-	void compute_spectrums();
-
-	std::vector< std::pair< float, float > > peaks; //(freqency, power)
+	void compute_viz();
 
 	static Sound load(std::string const &path); //throws on error
 	static Sound from_samples(Sample const *begin, Sample const *end);
@@ -54,7 +57,7 @@ struct Trigger {
 	Sound const *sound = nullptr;
 	TimeLog2Hz start = TimeLog2Hz(0.0f, 0.0f);
 	std::vector< TimeLog2Hz > steps; //pitch/time warping
-	//NOTE: steps are *delta* time, *absolute* pitch
+	//NOTE: steps are *delta* time, *absolute* pitch [for estimated fundamental]
 	//TODO: panning? loudness?
 
 	Time length() const {

@@ -16,6 +16,9 @@ Sound const *Composition::add_sound(Sound const &sound) {
 		}
 	}
 	sounds.emplace_back(sound);
+	if (sounds.back().peaks.empty()) {
+		sounds.back().compute_viz();
+	}
 	return &sounds.back();
 }
 
