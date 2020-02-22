@@ -17,7 +17,10 @@ constexpr uint32_t SpectrumStep = SampleRate / SpectrumRate; //sample offset bet
 //Spectrum stored with sound is log(power) in log2hz units.
 constexpr float SpectrumMinFreq = 20.0f;
 constexpr float SpectrumMaxFreq = 20000.0f;
-constexpr uint32_t SpectrumBins = 1500; //number of equal multiplicative steps in spectrum
+constexpr uint32_t SpectrumBins = 2000; //number of equal multiplicative steps in spectrum
+
+constexpr uint32_t PeakRate = 100; //peaks per second
+constexpr uint32_t PeakCount = 20; //peaks to retain per sample
 
 
 //individual sample:
@@ -39,6 +42,8 @@ struct Sound : std::vector< Sample > {
 
 	std::vector< float > spectrums;
 	void compute_spectrums();
+
+	std::vector< std::pair< float, float > > peaks; //(freqency, power)
 
 	static Sound load(std::string const &path); //throws on error
 	static Sound from_samples(Sample const *begin, Sample const *end);

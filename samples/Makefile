@@ -17,13 +17,13 @@ temp.waves-norm.wav : waves.wav
 	cp $< $@
 
 $(DIR)/square.wav : temp.waves-norm.wav
-	sox $< -c 1 $@ trim 0 2 reverse silence 1 1 0 reverse
+	sox $< -c 1 $@ trim 0 1.9 reverse silence 1 1 0 reverse
 
 $(DIR)/saw.wav : temp.waves-norm.wav
-	sox $< -c 1 $@ trim 2 2 reverse silence 1 1 0 reverse
+	sox $< -c 1 $@ trim 2 1.9 reverse silence 1 1 0 reverse
 
 $(DIR)/triangle.wav : temp.waves-norm.wav
-	sox $< -c 1 $@ trim 4 2 reverse silence 1 1 0 reverse
+	sox $< -c 1 $@ trim 4 1.9 reverse silence 1 1 0 reverse
 
 $(DIR)/dual-sine.wav : temp.waves-norm.wav
-	sox $< -c 1 $@ trim 6 2 reverse silence 1 1 0 reverse
+	sox $< -c 1 $@ trim 6 1.9 reverse silence 1 1 0 reverse
