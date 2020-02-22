@@ -347,16 +347,23 @@ void FreiScale::draw() {
 					for (uint32_t s = 0; s < PeaksSlots; ++s) {
 						if (slots[s].first <= 0.0f) continue;
 						//std::cout << slots[s].first << "/" << warped_peaks[peak].t << "/" << warped_peaks[peak].p << std::endl;
-						glm::u8vec4 color = glm::u8vec4(0xff, 0xff, 0xff, 0xff);
-						points.emplace_back(
-							get_screen_position(
-								TimeLog2Hz(
-									warped_peaks[peak].t,
-									glm::log2(slots[s].first) + warped_peaks[peak].p
-								)
-							),
-							color
-						);
+						int32_t amt = 255.0f * slots[s].second;
+						amt = std::max(0, std::min(255, amt));
+						glm::u8vec4 color = glm::u8vec4(0x0, amt, 0x0, 0xff);
+
+						if(&t == hovered.song_trigger_handle.first || &t == hovered.song_trigger_segment.first) {
+							color.r = color.g;
+						}
+
+						TimeLog2Hz from(warped_peaks[peak].t, glm::log2(slots[s].first) + warped_peaks[peak].p);
+						TimeLog2Hz to = from;
+						if (peak + 1 < warped_peaks.size()) {
+							to.t = warped_peaks[peak+1].t;
+							to.p = std::log2(slots[s].first) + warped_peaks[peak+1].p;
+						}
+
+						lines.emplace_back( get_screen_position(from), color );
+						lines.emplace_back( get_screen_position(to), color );
 					}
 				}
 				/*

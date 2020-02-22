@@ -113,13 +113,24 @@ void Sound::compute_viz() {
 	float min = std::numeric_limits< float >::infinity();
 	float max = -std::numeric_limits< float >::infinity();
 	for (auto &[ freq, power ] : peaks) {
+		if (freq == 0.0f) continue;
 		min = std::min(min, power);
 		max = std::max(max, power);
 	}
 	std::cout << "Peak powers in [" << min << ", " << max << "]." << std::endl;
 
 	for (auto &[ freq, power ] : peaks) {
-		power /= max;
+		power = (std::log10(power / max) + 10.0f) / 10.0f;
 	}
+
+	min = std::numeric_limits< float >::infinity();
+	max = -std::numeric_limits< float >::infinity();
+	for (auto &[ freq, power ] : peaks) {
+		if (freq == 0.0f) continue;
+		min = std::min(min, power);
+		max = std::max(max, power);
+	}
+	std::cout << " => Peak powers in [" << min << ", " << max << "]." << std::endl;
+
 
 }
