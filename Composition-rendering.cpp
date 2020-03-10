@@ -106,6 +106,7 @@ void Composition::update_rendered(Time focus) {
 
 	while (new_block != new_blocks.end()) {
 		rendered.emplace_hint(rendered.end(), *new_block);
+		++new_block;
 	}
 
 	{ //re-make pending list:
