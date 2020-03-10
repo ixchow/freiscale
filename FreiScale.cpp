@@ -77,6 +77,12 @@ void FreiScale::resized() {
 }
 
 void FreiScale::update(float elapsed) {
+	for (auto const &t : composition->triggers) {
+		if (t->sources_dirty) {
+			t->compute_sources();
+		}
+	}
+	composition->update_rendered(composition->loop_begin);
 	update_hovered();
 }
 
@@ -223,20 +229,41 @@ void FreiScale::draw() {
 	
 		//Triggers:
 		for (auto const &t : composition->triggers) {
-			float sample_length = Time(t.sound ? t.sound->size() : 0) / Time(SampleRate);
-			uint32_t peaks_count = (t.sound ? t.sound->peaks.size() : 0) / PeaksSlots;
+			//float sample_length = Time(t->sound ? t->sound->size() : 0) / Time(SampleRate);
+			//uint32_t peaks_count = (t->sound ? t->sound->peaks.size() : 0) / PeaksSlots;
 
-			float offset_p = (t.sound ? -std::log2( t.sound->fundamental ) : 0.0f );
+			float offset_p = (t->sound ? std::log2( t->sound->fundamental ) : 0.0f );
 
 			{ //show sample line:
 				glm::u8vec4 color = glm::u8vec4(0xaa, 0xcc, 0xbb, 0xff);
 				glm::u8vec4 color_dim = glm::u8vec4(0x55, 0x77, 0x44, 0xff);
 				const float Height = 10;
 
-				TimeLog2Hz at = t.start;
-				glm::vec2 px = get_screen_position(at);
-				lines.emplace_back( px + glm::vec2(0.0f, -0.5f * Height), color);
-				lines.emplace_back( px + glm::vec2(0.0f, 0.5f * Height), color );
+				TimeLog2Hz at = t->steps[0];
+				at.p += offset_p;
+				glm::vec2 at_px = get_screen_position(at);
+				lines.emplace_back( at_px + glm::vec2(0.0f, -0.5f * Height), color);
+				lines.emplace_back( at_px + glm::vec2(0.0f, 0.5f * Height), color );
+
+				for (uint32_t s = 1; s < t->steps.size(); ++s) {
+					TimeLog2Hz next = t->steps[s];
+					next.p += offset_p;
+					glm::vec2 next_px = get_screen_position(next);
+
+					/* TODO: bring back sample end indication somehow.
+					int32_t s0 = int32_t(std::round(at.t * SampleRate));
+					int32_t s1 = int32_t(std::round(at.t * SampleRate));
+					s1 = std::max(s0, s1);
+					*/
+					lines.emplace_back( at_px, color_dim );
+					lines.emplace_back( next_px, color_dim );
+
+					at = next;
+					at_px = next_px;
+				}
+
+
+				/*
 
 				std::vector< TimeLog2Hz > warped_peaks;
 				warped_peaks.reserve(peaks_count);
@@ -367,26 +394,6 @@ void FreiScale::draw() {
 						lines.emplace_back( get_screen_position(to), color );
 					}
 				}
-				/*
-				//peaks (DEBUG):
-				for (uint32_t i = 0; i < peaks_count; ++i) {
-					float t0 = t.start.t + i / float(PeaksRate);
-					float t1 = t.start.t + (i+1) / float(PeaksRate);
-					std::pair< float, float > const *slots = &(t.sound->peaks[PeaksSlots * i]);
-					for (uint32_t pi = 0; pi < PeaksSlots; ++pi) {
-						if (slots[pi].second == 0.0f) continue;
-						lines.emplace_back(
-							get_screen_position(TimeLog2Hz( t0, std::log2(slots[pi].first) )),
-							glm::u8vec4(0xff, 0x00, 0xff, 0xff)
-						);
-						lines.emplace_back(
-							get_screen_position(TimeLog2Hz( t1, std::log2(slots[pi].first) )),
-							glm::u8vec4(0xff, 0x00, 0xff, 0xff)
-						);
-						if (i == 1) std::cout << " | " << slots[i].first << "/" << slots[i].second;
-					}
-					if (i == 1) std::cout << std::endl;
-				}
 				*/
 			}
 
@@ -400,17 +407,10 @@ void FreiScale::draw() {
 					glm::vec2(-2.0f,  2.0f)
 				};
 
-				TimeLog2Hz at = t.start;
-
-				glm::vec2 px = get_screen_position(at);
-				for (uint32_t i = 0; i < box.size(); ++i) {
-					lines.emplace_back( px + box[i], color );
-					lines.emplace_back( px + box[(i+1)%box.size()], color );
-				}
-				for (uint32_t s = 0; s < t.steps.size(); ++s) {
-					at.t += t.steps[s].t;
-					at.p = t.steps[s].p;
-					px = get_screen_position(at);
+				for (uint32_t s = 0; s < t->steps.size(); ++s) {
+					TimeLog2Hz at = t->steps[s];
+					at.p += offset_p;
+					glm::vec2 px = get_screen_position(at);
 					for (uint32_t i = 0; i < box.size(); ++i) {
 						lines.emplace_back( px + box[i], color );
 						lines.emplace_back( px + box[(i+1)%box.size()], color );
@@ -542,10 +542,7 @@ struct PanViewAction : public Action {
 
 struct MoveTriggerAction : public Action {
 	MoveTriggerAction(FreiScale &fs_, Trigger &t_) : fs(fs_), t(t_), reference(fs.get_song_position(fs.mouse)) {
-		original.emplace_back(t.start);
-		for (auto const &s : t.steps) {
-			original.emplace_back(s);
-		}
+		original = t.steps;
 	}
 	virtual ~MoveTriggerAction() {
 	}
@@ -560,7 +557,9 @@ struct MoveTriggerAction : public Action {
 			if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
 				//TODO: preview playback trigger/cancel
 			} else if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
-				//TODO: cancel action
+				t.steps = original;
+				t.sources_dirty = true;
+				fs.action.reset();
 			}
 		}
 		if (evt.type == SDL_MOUSEMOTION) {
@@ -569,15 +568,11 @@ struct MoveTriggerAction : public Action {
 
 			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
 
-			t.start = original[0];
-			t.start.t += offset.t;
-			t.start.p += offset.p;
 			for (uint32_t s = 0; s < t.steps.size(); ++s) {
-				t.steps[s] = original[s+1];
-				//t.steps[s].t += offset.t; <-- already relative
+				t.steps[s].t += offset.t;
 				t.steps[s].p += offset.p;
 			}
-
+			t.sources_dirty = true;
 		}
 	}
 	virtual void draw() override {
@@ -590,7 +585,7 @@ struct MoveTriggerAction : public Action {
 
 struct MoveStepAction : public Action {
 	MoveStepAction(FreiScale &fs_, Trigger &t_, uint32_t idx_) : fs(fs_), t(t_), idx(idx_), reference(fs.get_song_position(fs.mouse)) {
-		original = t;
+		original = t.steps;
 	}
 	virtual ~MoveStepAction() {
 	}
@@ -606,7 +601,8 @@ struct MoveStepAction : public Action {
 				//TODO: preview playback trigger/cancel
 			} else if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
 				//cancel action
-				t = original;
+				t.steps = original;
+				t.sources_dirty = true;
 				fs.action.reset();
 			}
 		}
@@ -616,17 +612,26 @@ struct MoveStepAction : public Action {
 
 			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
 
-			t = original;
+			t.steps = original;
+			if (idx < t.steps.size()) {
+				t.steps[idx].t = original[idx].t + offset.t;
+				t.steps[idx].p = original[idx].p + offset.p;
 
-			if (idx == 0) {
-				//moving first step == 'start'
-			} else if (0 < idx && idx <= t.steps.size()) {
-				float old = t.steps[idx-1].t;
-				t.steps[idx-1].t = std::max(0.0f, t.steps[idx-1].t + offset.t);
-				t.steps[idx-1].p += offset.p;
-				if (idx < t.steps.size()) {
-					t.steps[idx].t = std::max(0.0f, t.steps[idx].t - (t.steps[idx-1].t - old));
+				if (idx > 0 && t.steps[idx].t < t.steps[idx-1].t) {
+					float delta = t.steps[idx].t - t.steps[idx-1].t;
+					for (uint32_t i = 0; i < idx; ++i) {
+						t.steps[i].t += delta;
+					}
 				}
+
+				if (idx + 1 < t.steps.size() && t.steps[idx].t > t.steps[idx+1].t) {
+					float delta = t.steps[idx].t - t.steps[idx+1].t;
+					for (uint32_t i = idx + 1; i < t.steps.size(); ++i) {
+						t.steps[i].t += delta;
+					}
+				}
+
+				t.sources_dirty = true;
 			} else {
 				//??? bad index
 			}
@@ -638,7 +643,7 @@ struct MoveStepAction : public Action {
 	Trigger &t;
 	uint32_t idx; //0 -> start, 1 .. N -> steps
 
-	Trigger original;
+	std::vector< TimeLog2Hz > original;
 	TimeLog2Hz reference;
 };
 
@@ -734,12 +739,14 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 			//"create" new trigger
 			if (song_box.contains(mouse) && current_library_sound) {
 				std::cout << "Make Trigger!" << std::endl;
-				Trigger trigger;
-				trigger.start = get_song_position(mouse);
-				trigger.sound = composition->add_sound(*current_library_sound);
+				std::shared_ptr< Trigger > trigger = std::make_shared< Trigger >(composition->add_sound(*current_library_sound));
+				trigger->steps[0] = get_song_position(mouse);
+				trigger->steps[0].p -= std::log2(trigger->sound->fundamental);
+				trigger->steps[1] = trigger->steps[1];
+				trigger->steps[1].t += 1.0f;
 				composition->triggers.emplace_back(trigger);
 
-				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));
+				action.reset(new MoveTriggerAction(*this, *composition->triggers.back()));
 				return;
 			}
 		} else if (evt.key.keysym.sym == SDLK_s) {
@@ -747,13 +754,11 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 			if (song_box.contains(mouse) && hovered.song_trigger_segment.first) {
 				auto &trigger = *hovered.song_trigger_segment.first;
 				TimeLog2Hz pos = get_song_position(mouse);
-				float t = pos.t - trigger.start.t;
 				uint32_t before = 0;
-				while (before < trigger.steps.size() && t > trigger.steps[before].t) {
-					t -= trigger.steps[before].t;
+				while (before < trigger.steps.size() && pos.t > trigger.steps[before].t) {
 					++before;
 				}
-				trigger.steps.insert(trigger.steps.begin() + before, TimeLog2Hz(0, pos.p));
+				trigger.steps.insert(trigger.steps.begin() + before, TimeLog2Hz(pos.t, pos.p - std::log2(trigger.sound->fundamental)));
 
 				action.reset(new MoveStepAction(*this, *hovered.song_trigger_segment.first, before));
 				return;
@@ -872,18 +877,16 @@ void FreiScale::update_hovered() {
 			}
 		};
 		for (auto &t : composition->triggers) {
-			check_handle(get_screen_position(t.start), t, 0);
-			TimeLog2Hz at = t.start;
-			TimeLog2Hz prev = at;
-			for (uint32_t s = 0; s < t.steps.size(); ++s) {
-				at.t += t.steps[s].t;
-				at.p = t.steps[s].p;
-				check_handle(get_screen_position(at), t, 1 + s);
-				check_segment(get_screen_position(prev), get_screen_position(at), t, s);
-				prev = at;
+			float offset_p = std::log2(t->sound->fundamental);
+			glm::vec2 prev_px = glm::vec2(0.0f);
+			for (uint32_t s = 0; s < t->steps.size(); ++s) {
+				glm::vec2 px = get_screen_position(TimeLog2Hz(t->steps[s].t, t->steps[s].p + offset_p));
+				check_handle(px, *t, s);
+				if (s > 0) {
+					check_segment(prev_px, px, *t, s);
+				}
+				prev_px = px;
 			}
-			//TODO: correct tail length(!!)
-			check_segment(get_screen_position(prev), get_screen_position(prev) + glm::vec2(20.0f, 0.0f), t, t.steps.size());
 		}
 	}
 

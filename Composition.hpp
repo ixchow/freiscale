@@ -61,16 +61,23 @@ struct Trigger {
 	//NOTE: steps are (sorted) *absolute* time, *absolute* speed change
 	//*must* have at least two steps.
 
-	void fix_steps() {
+	bool fix_steps() {
+		bool fixed = false;
 		if (steps.empty()) {
 			steps = { TimeLog2Hz(0.0f, 0.f), TimeLog2Hz(1.0f, 0.0f) };
+			fixed = true;
 		} else if (steps.size() == 1) {
 			steps.emplace_back(steps[0].t + 1.0f, steps[0].p);
+			fixed = true;
 		} else {
 			for (uint32_t i = 1; i < steps.size(); ++i) {
-				steps[i].t = std::max(steps[i].t, steps[i-1].t);
+				if (steps[i].t < steps[i-1].t) {
+					steps[i].t =  steps[i-1].t;
+					fixed = true;
+				}
 			}
 		}
+		return fixed;
 	}
 
 	const Time begin() { return steps[0].t; }
@@ -81,7 +88,7 @@ struct Trigger {
 	//for every output sample in the range [start.t, end.t], use this input sample:
 	//(computed from steps)
 	std::vector< Time > sources;
-	bool sources_dirty = false;
+	bool sources_dirty = true;
 	void compute_sources();
 };
 
@@ -128,7 +135,7 @@ struct Composition {
 	//Required:
 	//  begin_sample <= end_sample
 	//  buffer != nullptr
-	//Renders [begin_sample, end_sample) to buffer
+	//Renders [begin_sample, end_sample) to buffer (copies from render blocks, actually)
 	void render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer);
 
 	//load/save:

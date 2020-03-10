@@ -28,90 +28,15 @@ void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< 
 	auto &buffer = *buffer_;
 	buffer.assign(end_sample - begin_sample, Sample(0));
 
-	Time begin_time = Time(begin_sample) / Time(SampleRate);
-	Time end_time = Time(end_sample) / Time(SampleRate);
+	for (auto const &[ idx, block ] : rendered) {
+		if (block->dirty) continue;
+		assert(block->samples.size() == BlockSize);
 
-	//DEBUG: clear sources info for all triggers:
-//	for (auto &t : triggers) {
-//		t.sources.clear();
-//	}
-	//end DEBUG
-
-	for (auto &t : triggers) {
-		if (t->sources_dirty) {
-			t->compute_sources();
+		int32_t begin = std::max(begin_sample, block->start_sample);
+		int32_t end = std::min< int32_t >(end_sample, block->start_sample + BlockSize);
+		for (int32_t s = begin; s < end; ++s) {
+			buffer[s-begin_sample] = block->samples[s-block->start_sample];
 		}
-		if (t->start.t >= end_time) continue;
-		if (t->end.t <= begin_time) continue;
-
-		//samples are located at N / Time(SampleRate) points. So first sample inside trigger is:
-		int32_t t_begin_sample = int32_t(std::ceil(t.start.t * SampleRate));
-
-		if (t_begin_sample >= end_sample) continue;
-
-		//So, relative to start of trigger, first sample is...
-		float first_sample_time = t_begin_sample / Time(SampleRate) - t.start.t;
-
-		//So write down where (in source sound) time_ofs, time_ofs + 1 / SampleRate, ... come from:
-		std::vector< float > samples;
-		float length = t.sound->size() / Time(SampleRate);
-
-		Log2Hz offset_p = -std::log2(t.sound->fundamental);
-
-		float t0 = 0.0f;
-		float pos = 0.0f;
-		for (uint32_t s = 0; s < t.steps.size(); ++s) {
-			if (t.steps[s].t <= 0.0f) continue;
-			float p0 = (s == 0 ? t.start.p : t.steps[s-1].p) + offset_p;
-			float p1 = t.steps[s].p + offset_p;
-			float t1 = t0 + t.steps[s].t;
-
-			//ax + b == (p1 - p0) / (t1 - t0) * x + p0
-			float a = (p1 - p0) / (t1 - t0);
-			float b = p0;
-			//for every sample that would be taken from this interval...
-			while (first_sample_time + (samples.size() / Time(SampleRate)) < t1) {
-				//speed = 2^(ax+b) = 2^b * (2^a)^x = 2^b * e^(log(2)ax)
-				//position = \int_0^t speed = 2^b / (log(2)a) * ( e^(log(2)ax) - e^(0) )
-				//position = 2^b / (log(2)a) * ( e^(log(2)ax) - 1 )
-				//compute delta-position using integral:
-				float x = first_sample_time + (samples.size() / Time(SampleRate));
-				samples.emplace_back(
-					pos + std::exp2( b ) / (std::log( 2.0f ) * a ) * ( std::exp2( a * (x - t0) ) - 1.0f )
-				);
-				if (samples.back() > length) break;
-			}
-			pos += std::exp2( b ) / (std::log( 2.0f ) * a ) * ( std::exp2( a * (t1 - t0) ) - 1.0f );
-			if (pos > length) break;
-
-			t0 = t1;
-		}
-
-		if (samples.empty() || samples.back() < length) { //deal with tail:
-			float p = (t.steps.empty() ? t.start.p : t.steps.back().p) + offset_p;
-			do {
-				float x = first_sample_time + (samples.size() / Time(SampleRate));
-				samples.emplace_back(
-					pos + std::exp2( p ) * (x - t0)
-				);
-			} while (samples.back() < length);
-		}
-
-		//okay, sample sources have been computed!
-
-		//t.sources = samples; //DEBUG: store sources info for visualization
-
-		int32_t mix_begin_sample = std::max(t_begin_sample, begin_sample);
-		int32_t mix_end_sample = std::min< int32_t >(t_begin_sample + samples.size(), end_sample);
-
-		for (int32_t s = mix_begin_sample; s < mix_end_sample; ++s) {
-			float source = samples[s - t_begin_sample] * SampleRate;
-			int32_t isource = int32_t(std::round(source));
-			if (isource >= 0 && uint32_t(isource) < t.sound->size()) {
-				buffer[s - begin_sample] += (*t.sound)[isource];
-			}
-		}
-
 	}
 }
 
@@ -155,7 +80,7 @@ Composition Composition::load(std::string const &path) {
 
 	Composition ret;
 
-	std::vector< Sound const * > sounds;
+	std::vector< std::shared_ptr< Sound const > > sounds;
 	for (auto &snd : snd0) {
 		if (snd.begin > snd.end || snd.end > smp0.size()) {
 			throw std::runtime_error("snd0 with out-of-range index");
@@ -172,11 +97,9 @@ Composition Composition::load(std::string const &path) {
 		if (trg.snd >= sounds.size()) {
 			throw std::runtime_error("trg0 with out-of-range sound");
 		}
-		Trigger trigger;
-		trigger.sound = sounds[trg.snd];
-		trigger.start = TimeLog2Hz(tps0[trg.begin].t, tps0[trg.begin].p);
-		for (uint32_t i = trg.begin + 1; i < trg.end; ++i) {
-			trigger.steps.emplace_back(tps0[i].t, tps0[i].p);
+		std::shared_ptr< Trigger > trigger = std::make_shared< Trigger >(sounds[trg.snd]);
+		for (uint32_t i = trg.begin; i < trg.end; ++i) {
+			trigger->steps.emplace_back(tps0[i].t, tps0[i].p);
 		}
 		ret.triggers.emplace_back(trigger);
 	}
@@ -201,11 +124,11 @@ void Composition::save(std::string const &path) const {
 	for (auto const &sound : sounds) {
 		FS2_snd0 snd;
 		snd.begin = smp0.size();
-		smp0.insert(smp0.end(), sound.begin(), sound.end());
+		smp0.insert(smp0.end(), sound->begin(), sound->end());
 		snd.end = smp0.size();
 		snd0.emplace_back(snd);
 
-		sound_index.emplace(&sound, sound_index.size());
+		sound_index.emplace(sound.get(), sound_index.size());
 	}
 	write_chunk("smp0", smp0, &to);
 	write_chunk("snd0", snd0, &to);
@@ -214,10 +137,9 @@ void Composition::save(std::string const &path) const {
 	std::vector< FS2_trg0 > trg0;
 	for (auto const &trigger : triggers) {
 		FS2_trg0 trg;
-		trg.snd = sound_index.at(trigger.sound);
+		trg.snd = sound_index.at(trigger->sound.get());
 		trg.begin = tps0.size();
-		tps0.emplace_back(FS2_tps0{trigger.start.t, trigger.start.p});
-		for (auto const &step : trigger.steps) {
+		for (auto const &step : trigger->steps) {
 			tps0.emplace_back(FS2_tps0{step.t, step.p});
 		}
 		trg.end = tps0.size();
