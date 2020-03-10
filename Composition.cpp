@@ -8,18 +8,18 @@
 #include <unordered_map>
 #include <algorithm>
 
-Sound const *Composition::add_sound(Sound const &sound) {
+std::shared_ptr< Sound const > Composition::add_sound(Sound const &sound) {
 	//NOTE: could accelerate with some sort of hash of sounds if content-compare ends up too slow (as might happen with many samples of exactly the same length and initial content)
 	for (auto const &have : sounds) {
-		if (static_cast< std::vector< Sample > const & >(have) == static_cast< std::vector< Sample > const & >(sound)) {
-			return &have;
+		if (static_cast< std::vector< Sample > const & >(*have) == static_cast< std::vector< Sample > const & >(sound)) {
+			return have;
 		}
 	}
-	sounds.emplace_back(sound);
-	if (sounds.back().peaks.empty()) {
-		sounds.back().compute_viz();
+	sounds.emplace_back(std::make_shared< Sound >(sound));
+	if (sounds.back()->peaks.empty()) {
+		sounds.back()->compute_viz();
 	}
-	return &sounds.back();
+	return sounds.back();
 }
 
 void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer_) {
@@ -32,15 +32,17 @@ void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< 
 	Time end_time = Time(end_sample) / Time(SampleRate);
 
 	//DEBUG: clear sources info for all triggers:
-	for (auto &t : triggers) {
-		t.sources.clear();
-	}
+//	for (auto &t : triggers) {
+//		t.sources.clear();
+//	}
 	//end DEBUG
 
 	for (auto &t : triggers) {
-		if (!t.sound) continue;
-		if (t.start.t >= end_time) continue;
-		if (t.start.t + t.length() < begin_time) continue;
+		if (t->sources_dirty) {
+			t->compute_sources();
+		}
+		if (t->start.t >= end_time) continue;
+		if (t->end.t <= begin_time) continue;
 
 		//samples are located at N / Time(SampleRate) points. So first sample inside trigger is:
 		int32_t t_begin_sample = int32_t(std::ceil(t.start.t * SampleRate));
@@ -97,7 +99,7 @@ void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< 
 
 		//okay, sample sources have been computed!
 
-		t.sources = samples; //DEBUG: store sources info for visualization
+		//t.sources = samples; //DEBUG: store sources info for visualization
 
 		int32_t mix_begin_sample = std::max(t_begin_sample, begin_sample);
 		int32_t mix_end_sample = std::min< int32_t >(t_begin_sample + samples.size(), end_sample);
@@ -233,5 +235,3 @@ void Composition::save(std::string const &path) const {
 
 	write_struct("ifo0", ifo0, &to);
 }
-
-

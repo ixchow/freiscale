@@ -6,6 +6,8 @@ SubInclude TOP kit ;
 MySubDir TOP ;
 
 local NAMES =
+	Trigger.cpp
+	Composition-rendering.cpp
 	DrawStuff.cpp
 	FreiScale.cpp
 	SpectrumProgram.cpp

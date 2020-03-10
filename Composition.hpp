@@ -6,6 +6,8 @@
 #include <cmath>
 #include <string>
 #include <memory>
+#include <map>
+#include <cassert>
 
 //sample rate:
 constexpr uint32_t SampleRate = 48000;
@@ -13,11 +15,7 @@ constexpr uint32_t SampleRate = 48000;
 constexpr uint32_t SpectrumRate = 100; //spectrums per second
 static_assert(SampleRate % SpectrumRate == 0, "Spectrums start on sample boundaries.");
 constexpr uint32_t SpectrumStep = SampleRate / SpectrumRate; //sample offset between subsequent spectrums
-
-//Spectrum stored with sound is log(power) in log2hz units.
-constexpr float SpectrumMinFreq = 20.0f;
-constexpr float SpectrumMaxFreq = 20000.0f;
-constexpr uint32_t SpectrumBins = 2000; //number of equal multiplicative steps in spectrum
+constexpr uint32_t SpectrumSize = 2048;
 
 constexpr uint32_t PeaksRate = 100; //peaks per second
 constexpr uint32_t PeaksSlots = 20; //peaks to retain per sample
@@ -54,45 +52,37 @@ struct Sound : std::vector< Sample > {
 
 //Trigger a Sound at a given time/pitch:
 struct Trigger {
-	Sound const *sound = nullptr;
-	TimeLog2Hz start = TimeLog2Hz(0.0f, 0.0f);
-	std::vector< TimeLog2Hz > steps; //pitch/time warping
-	//NOTE: steps are *delta* time, *absolute* pitch [for estimated fundamental]
-	//TODO: panning? loudness?
+	Trigger(std::shared_ptr< Sound const > sound_) : sound(sound_) {
+		assert(sound);
+	}
+	std::shared_ptr< Sound const > sound;
+	//pitch/time position points:
+	std::vector< TimeLog2Hz > steps = { TimeLog2Hz(0.0f, 0.0f), TimeLog2Hz(1.0f, 0.0f) };
+	//NOTE: steps are (sorted) *absolute* time, *absolute* speed change
+	//*must* have at least two steps.
 
-	Time length() const {
-		if (!sound) return Time(0);
-
-		Time remain = Time(sound->size()) / Time(SampleRate);
-		Time used = 0.0f;
-
-		Log2Hz offset_p = -std::log2(sound->fundamental);
-		for (uint32_t s = 0; s < steps.size(); ++s) {
-			if (steps[s].t <= 0.0f) continue;
-			//speed = 2^(ax+b) = 2^b * (2^a)^x = 2^b * e^(log(2)ax)
-			//position = \int_0^t speed = 2^b / (log(2)a) * ( e^(log(2)ax) - e^(0) )
-			//position = 2^b / (log(2)a) * ( e^(log(2)ax) - 1 )
-			float p0 = (s == 0 ? start.p : steps[s-1].p) + offset_p;
-			float p1 = steps[s].p + offset_p;
-			float dt = steps[s].t;
-
-			float a = (p1 - p0) / dt;
-			float b = p0;
-
-			float len = std::exp2( b ) / (std::log(2.0f) * a) * (std::exp2( a * dt ) - 1.0f);
-
-			remain -= len;
-			used += dt;
-
-			if (remain <= 0.0f) return used;
+	void fix_steps() {
+		if (steps.empty()) {
+			steps = { TimeLog2Hz(0.0f, 0.f), TimeLog2Hz(1.0f, 0.0f) };
+		} else if (steps.size() == 1) {
+			steps.emplace_back(steps[0].t + 1.0f, steps[0].p);
+		} else {
+			for (uint32_t i = 1; i < steps.size(); ++i) {
+				steps[i].t = std::max(steps[i].t, steps[i-1].t);
+			}
 		}
-
-		float p = (steps.empty() ? start.p : steps.back().p) + offset_p;
-		return used + remain / std::exp2(p);
 	}
 
-	//DEBUG:
-	std::vector< float > sources; //time points in original sound that map to samples starting at std::ceil(start.t * SampleRate)
+	const Time begin() { return steps[0].t; }
+	const int32_t begin_sample() { return int32_t(std::round(begin() * SampleRate)); }
+	const Time end() { return steps.back().t; }
+	const int32_t end_sample() { return int32_t(std::round(end() * SampleRate)); }
+
+	//for every output sample in the range [start.t, end.t], use this input sample:
+	//(computed from steps)
+	std::vector< Time > sources;
+	bool sources_dirty = false;
+	void compute_sources();
 };
 
 /*
@@ -118,8 +108,8 @@ struct Layer {
 
 //Composition holds everything:
 struct Composition {
-	std::list< Sound > sounds;
-	std::list< Trigger > triggers;
+	std::vector< std::shared_ptr< Sound > > sounds;
+	std::vector< std::shared_ptr< Trigger > > triggers;
 	/*
 	std::list< Block > blocks; //reference sounds via triggers
 	std::list< Layer > layers; //reference blocks via
@@ -131,7 +121,7 @@ struct Composition {
 	Time loop_end = 8.0f;
 
 	//Helper: add (/dedup) sound:
-	Sound const *add_sound(Sound const &sound);
+	std::shared_ptr< Sound const > add_sound(Sound const &sound);
 
 	//Computationing:
 	//notice that samples can be negative(!)
@@ -145,4 +135,23 @@ struct Composition {
 	static Composition load(std::string const &path);
 	void save(std::string const &path) const;
 
+	//rendered composition:
+	struct RenderBlock {
+		int32_t start_sample = 0;
+		std::vector< std::shared_ptr< Trigger > > triggers; //triggers assigned to this block for rendering (used to check/set dirty)
+
+		//if true, don't use samples/spectrum (might be in use by render thread):
+		bool dirty = true;
+
+		//empty unless block is freshly rendered:
+		std::vector< Sample > samples;
+		std::vector< std::array< float, SpectrumSize > > spectrums;
+		void render(); //compute samples + spectrums
+
+	};
+	static constexpr uint32_t BlockSize = SampleRate / 2;
+	std::map< int32_t, std::shared_ptr< RenderBlock > > rendered;
+
+	//update rendering priorities based on focus:
+	void update_rendered(Time focus);
 };

@@ -126,6 +126,7 @@ void FreiScale::draw() {
 	);
 
 	//DEBUG: draw this under the grid:
+	/*
 	{
 		if (spectrum_tex) {
 			glm::vec2 min = get_screen_position(
@@ -167,7 +168,7 @@ void FreiScale::draw() {
 
 			GL_ERRORS();
 		}
-	}
+	}*/
 
 	{ //song box background:
 		DrawLines draw(px_to_clip);
@@ -509,6 +510,36 @@ void FreiScale::draw() {
 	*/
 }
 
+struct PanViewAction : public Action {
+	PanViewAction(FreiScale &fs_) : fs(fs_), reference(fs.get_song_position(fs.mouse)) {
+	}
+	virtual ~PanViewAction() {
+	}
+	virtual void handle_event(SDL_Event const &evt) override {
+		if (evt.type == SDL_MOUSEBUTTONUP) {
+			if (evt.button.button == SDL_BUTTON_MIDDLE) {
+				fs.action.reset();
+				return;
+			}
+		}
+		if (evt.type == SDL_MOUSEMOTION) {
+			fs.mouse = glm::vec2( evt.motion.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
+			TimeLog2Hz current = fs.get_song_position(fs.mouse);
+
+			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
+
+			fs.song_center.t -= offset.t;
+			fs.song_center.p -= offset.p;
+
+		}
+	}
+	virtual void draw() override {
+	}
+	FreiScale &fs;
+	TimeLog2Hz reference;
+};
+
+
 struct MoveTriggerAction : public Action {
 	MoveTriggerAction(FreiScale &fs_, Trigger &t_) : fs(fs_), t(t_), reference(fs.get_song_position(fs.mouse)) {
 		original.emplace_back(t.start);
@@ -642,7 +673,7 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 					}
 				}
 			} else if (evt.button.button == SDL_BUTTON_MIDDLE) {
-				//TODO: pan view
+				action.reset(new PanViewAction(*this));
 			}
 		} else if (library_box.contains(mouse)) {
 			//------ library interactions -----
@@ -682,9 +713,9 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 			TimeLog2Hz focus = get_song_position(mouse);
 
 			if (SDL_GetModState() & KMOD_SHIFT) {
-				song_radius.p = std::min(16.0f, std::max(0.1f, song_radius.p * std::exp2(0.25f * evt.wheel.y)));
-			} else {
 				song_radius.t = std::min(100.0f, std::max(0.1f, song_radius.t * std::exp2(0.25f * evt.wheel.y)));
+			} else {
+				song_radius.p = std::min(16.0f, std::max(0.1f, song_radius.p * std::exp2(0.25f * evt.wheel.y)));
 			}
 
 			TimeLog2Hz new_focus = get_song_position(mouse);
