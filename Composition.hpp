@@ -156,7 +156,7 @@ struct Composition {
 		void render(); //compute samples + spectrums
 
 	};
-	static constexpr uint32_t BlockSize = SampleRate / 2;
+	static constexpr int32_t BlockSize = SampleRate / 2;
 	std::map< int32_t, std::shared_ptr< RenderBlock > > rendered;
 
 	//update rendering priorities based on focus:

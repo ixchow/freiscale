@@ -3,6 +3,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <iostream>
 
 static std::vector< std::shared_ptr< Composition::RenderBlock > > finished;
 static std::vector< std::shared_ptr< Composition::RenderBlock > > pending;
@@ -49,12 +50,12 @@ void Composition::update_rendered(Time focus) {
 	std::map< int32_t, std::shared_ptr< RenderBlock > > new_blocks;
 
 	//render a bit past song ends:
-	int32_t first_block = int32_t(std::floor( ((begin - 4.0f) * SampleRate) / float(BlockSize) ));
-	int32_t last_block  = int32_t(std::floor( ((end   + 4.0f) * SampleRate) / float(BlockSize) ));
+	int32_t first_block = int32_t(std::floor( ((std::min(begin, loop_begin) - 4.0f) * SampleRate) / float(BlockSize) ));
+	int32_t last_block  = int32_t(std::floor( ((std::max(end, loop_end)     + 4.0f) * SampleRate) / float(BlockSize) ));
 
 	for (auto const &trigger : triggers) {
-		int32_t min_block = int32_t(std::floor((trigger->begin_sample() + BlockPadding) / float(BlockSize)));
-		int32_t max_block = int32_t(std::floor((trigger->end_sample() + BlockPadding) / float(BlockSize)));
+		int32_t min_block = int32_t(std::floor((trigger->begin_sample() + int32_t(BlockPadding)) / float(BlockSize)));
+		int32_t max_block = int32_t(std::floor((trigger->end_sample() + int32_t(BlockPadding)) / float(BlockSize)));
 
 		min_block = std::max(min_block, first_block);
 		max_block = std::min(max_block, last_block);

@@ -176,6 +176,33 @@ void FreiScale::draw() {
 		}
 	}*/
 
+	{ //song box ready:
+		std::vector< DrawStuff::Pos2f_Col4ub > tristrip;
+
+		for (auto const &[ idx, ptr ] : composition->rendered) {
+			glm::vec2 min = get_screen_position(TimeLog2Hz( ptr->start_sample / float(SampleRate), song_center.p - song_radius.p));
+			glm::vec2 max = get_screen_position(TimeLog2Hz( (ptr->start_sample + Composition::BlockSize) / float(SampleRate), song_center.p + song_radius.p));
+
+			glm::u8vec4 colorB, colorT;
+			if (ptr->dirty) {
+				colorB = glm::u8vec4(0x55, 0x11, 0x11, 0xff);
+				colorT = glm::u8vec4(0x44, 0x44, 0x44, 0xff);
+			} else {
+				colorB = glm::u8vec4(0x22, 0x22, 0x22, 0xff);
+				colorT = glm::u8vec4(0x44, 0x44, 0x66, 0xff);
+			}
+
+			if (!tristrip.empty()) tristrip.emplace_back(tristrip.back());
+			tristrip.emplace_back(glm::vec2(min.x, min.y), colorB);
+			if (tristrip.size() != 1) tristrip.emplace_back(tristrip.back());
+			tristrip.emplace_back(glm::vec2(max.x, min.y), colorB);
+			tristrip.emplace_back(glm::vec2(min.x, max.y), colorT);
+			tristrip.emplace_back(glm::vec2(max.x, max.y), colorT);
+		}
+
+		DrawStuff::draw(px_to_clip, GL_TRIANGLE_STRIP, tristrip);
+	}
+
 	{ //song box background:
 		DrawLines draw(px_to_clip);
 			
@@ -222,6 +249,8 @@ void FreiScale::draw() {
 			draw_marker( composition->loop_end, glm::u8vec4( 0x88, 0x00, 0x44, 0xff ) );
 		}
 	}
+
+
 
 	{ //song box triggers:
 		std::vector< DrawStuff::Pos2f_Col4ub > lines;
@@ -568,6 +597,7 @@ struct MoveTriggerAction : public Action {
 
 			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
 
+			t.steps = original;
 			for (uint32_t s = 0; s < t.steps.size(); ++s) {
 				t.steps[s].t += offset.t;
 				t.steps[s].p += offset.p;
@@ -742,7 +772,7 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				std::shared_ptr< Trigger > trigger = std::make_shared< Trigger >(composition->add_sound(*current_library_sound));
 				trigger->steps[0] = get_song_position(mouse);
 				trigger->steps[0].p -= std::log2(trigger->sound->fundamental);
-				trigger->steps[1] = trigger->steps[1];
+				trigger->steps[1] = trigger->steps[0];
 				trigger->steps[1].t += 1.0f;
 				composition->triggers.emplace_back(trigger);
 
