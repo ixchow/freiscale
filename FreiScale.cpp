@@ -77,7 +77,7 @@ void FreiScale::resized() {
 }
 
 void FreiScale::update(float elapsed) {
-	for (auto const &t : composition->triggers) {
+	for (auto &t : composition->triggers) {
 		if (t->sources_dirty) {
 			t->compute_sources();
 		}
@@ -253,15 +253,15 @@ void FreiScale::draw() {
 
 
 	{ //song box triggers:
-		std::vector< DrawStuff::Pos2f_Col4ub > lines;
-		std::vector< DrawStuff::Pos2f_Col4ub > points;
-	
 		//Triggers:
 		for (auto const &t : composition->triggers) {
+
+			std::vector< DrawStuff::Pos2f_Col4ub > lines;
+			std::vector< DrawStuff::Pos2f_Col4ub > points;
 			//float sample_length = Time(t->sound ? t->sound->size() : 0) / Time(SampleRate);
 			//uint32_t peaks_count = (t->sound ? t->sound->peaks.size() : 0) / PeaksSlots;
 
-			float offset_p = (t->sound ? std::log2( t->sound->fundamental ) : 0.0f );
+			float offset_p = std::log2(t->sound->fundamental);
 
 			{ //show sample line:
 				glm::u8vec4 color = glm::u8vec4(0xaa, 0xcc, 0xbb, 0xff);
@@ -273,6 +273,12 @@ void FreiScale::draw() {
 				glm::vec2 at_px = get_screen_position(at);
 				lines.emplace_back( at_px + glm::vec2(0.0f, -0.5f * Height), color);
 				lines.emplace_back( at_px + glm::vec2(0.0f, 0.5f * Height), color );
+
+				{
+					glm::vec2 fundamental_px = get_screen_position(TimeLog2Hz( at.t, offset_p ));
+					lines.emplace_back( at_px, glm::u8vec4(0x44, 0x44, 0x44, 0xff));
+					lines.emplace_back( fundamental_px, glm::u8vec4(0x77, 0x77, 0x77, 0xff));
+				}
 
 				for (uint32_t s = 1; s < t->steps.size(); ++s) {
 					TimeLog2Hz next = t->steps[s];
@@ -291,113 +297,9 @@ void FreiScale::draw() {
 					at_px = next_px;
 				}
 
+			
 
 				/*
-
-				std::vector< TimeLog2Hz > warped_peaks;
-				warped_peaks.reserve(peaks_count);
-
-				auto warp_peaks = [&warped_peaks,&peaks_count,&offset_p](TimeLog2Hz tp0, TimeLog2Hz tp1, float s0) {
-					//draw peaks from tp0 to tp1 given sample time s0:
-
-					float p0 = tp0.p;
-					float p1 = tp1.p;
-					if (p1 == p0) p1 += 1e-3;
-					float t0 = tp0.t;
-					float t1 = tp1.t;
-
-					float a = (p1 - p0) / (t1 - t0);
-					float b = p0 + offset_p;
-
-					
-					//float len = std::exp2( b ) / (std::log(2.0f) * a) * (std::exp2( a * (t1-t0) ) - 1.0f);
-
-					//std::cout << "[" << t0 << " - " << t1 << "] => " << p0 << " - " << p1 << " ==> " << len << std::endl; //DEBUG
-
-					while (warped_peaks.size() < peaks_count) {
-						float ds = warped_peaks.size() / float(PeaksRate) - s0;
-						float t = std::log2( ds * ( (std::log(2.0f) * a) / std::exp2( b ) ) + 1.0f ) / a;
-						//std::cout << "ds: " << ds << " -> t " << t << " of " << len << std::endl;
-						if (t > t1 - t0) break;
-						warped_peaks.emplace_back(t0 + t, a * t + b);
-					}
-				};
-
-				float play_t = 0.0f;
-
-				for (uint32_t s = 0; s < t.steps.size(); ++s) {
-					TimeLog2Hz next = t.steps[s];
-					next.t += at.t;
-					glm::vec2 next_px = get_screen_position(next);
-
-					if (next.t == at.t) {
-						at = next;
-						px = next_px;
-						continue;
-					}
-
-					warp_peaks(at, next, play_t);
-
-					//draw line:
-
-					float p0 = at.p;
-					float p1 = next.p;
-					float dt = t.steps[s].t;
-
-					float a = (p1 - p0) / dt;
-					float b = p0 + offset_p;
-
-					float len = std::exp2( b ) / (std::log(2.0f) * a) * (std::exp2( a * dt ) - 1.0f);
-
-					if (play_t > sample_length) {
-						//already done
-						lines.emplace_back( px, color_dim );
-						lines.emplace_back( next_px, color_dim );
-					} else if (play_t + len > sample_length) {
-						//going to finish in here
-						//TODO: fancy hard edge
-						lines.emplace_back( px, color );
-						lines.emplace_back( next_px, color_dim );
-					} else {
-						//not going to finish in this segment
-						lines.emplace_back( px, color );
-						lines.emplace_back( next_px, color );
-					}
-
-					//update playback position etc:
-
-					play_t += len;
-					at = next;
-					px = next_px;
-				}
-
-				float tail_px = 0.0f;
-				if (play_t < sample_length) {
-
-					float p = (t.steps.empty() ? t.start.p : t.steps.back().p);
-					TimeLog2Hz next = at;
-					next.t += (sample_length - play_t) / std::exp2( p + offset_p );
-					glm::vec2 next_px = get_screen_position(next);
-
-					warp_peaks(at, next, play_t);
-
-					tail_px = next_px.x - px.x;
-
-					lines.emplace_back( px, color );
-					lines.emplace_back( next_px, color );
-					lines.emplace_back( next_px + glm::vec2(0.0f, -0.5f * Height), color );
-					lines.emplace_back( next_px + glm::vec2(0.0f, 0.5f * Height), color );
-					
-					px = next_px;
-				}
-
-				if (tail_px < 20.0f) {
-					glm::vec2 next_px = px;
-					next_px.x += (20.0f - tail_px);
-					lines.emplace_back( px, color_dim );
-					lines.emplace_back( next_px, color_dim );
-				}
-
 				//peaks:
 				for (uint32_t peak = 0; peak < warped_peaks.size(); ++peak) {
 					std::pair< float, float > const *slots = &(t.sound->peaks[PeaksSlots * peak]);
@@ -449,6 +351,30 @@ void FreiScale::draw() {
 
 			DrawStuff::draw(px_to_clip, GL_POINTS, points);
 			DrawStuff::draw(px_to_clip, GL_LINES, lines);
+
+			{
+				//DEBUG: show source positions:
+				lines.clear();
+				glm::vec2 base = get_screen_position( t->steps[0] );
+				for (uint32_t s = 1; s < t->sources.size(); ++s) {
+					lines.emplace_back(
+						glm::vec2(
+							base.x + (s-1) / float(SampleRate) / (2.0f * song_radius.t) * (song_box.max.x - song_box.min.x),
+							t->sources[s-1] / float(SampleRate) / (2.0f * song_radius.p) * (song_box.max.y - song_box.min.y) + song_box.min.y
+						),
+						(t->sources[s-1] < t->sound->size() ? glm::u8vec4(0xff, 0x00, 0xff, 0xff) : glm::u8vec4( 0x88, 0x00, 0x88, 0xff ))
+					);
+					lines.emplace_back(
+						glm::vec2(
+							base.x + s / float(SampleRate) / (2.0f * song_radius.t) * (song_box.max.x - song_box.min.x),
+							t->sources[s] / float(SampleRate) / (2.0f * song_radius.p) * (song_box.max.y - song_box.min.y) + song_box.min.y
+						),
+						(t->sources[s] < t->sound->size() ? glm::u8vec4(0xff, 0x00, 0xff, 0xff) : glm::u8vec4( 0x88, 0x00, 0x88, 0xff ))
+					);
+				}
+				DrawStuff::draw(px_to_clip, GL_LINES, lines);
+			}
+
 
 		}
 	}
@@ -570,8 +496,9 @@ struct PanViewAction : public Action {
 
 
 struct MoveTriggerAction : public Action {
-	MoveTriggerAction(FreiScale &fs_, Trigger &t_) : fs(fs_), t(t_), reference(fs.get_song_position(fs.mouse)) {
-		original = t.steps;
+	MoveTriggerAction(FreiScale &fs_, std::shared_ptr< Trigger > &t_, uint32_t idx_ = -1U) : fs(fs_), t(t_), idx(idx_),
+		original_sound(t->sound), original_steps(t->steps),
+		reference(fs.get_song_position(fs.mouse)) {
 	}
 	virtual ~MoveTriggerAction() {
 	}
@@ -586,8 +513,7 @@ struct MoveTriggerAction : public Action {
 			if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
 				//TODO: preview playback trigger/cancel
 			} else if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
-				t.steps = original;
-				t.sources_dirty = true;
+				t = std::make_shared< Trigger >(original_sound, original_steps);
 				fs.action.reset();
 			}
 		}
@@ -597,83 +523,44 @@ struct MoveTriggerAction : public Action {
 
 			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
 
-			t.steps = original;
-			for (uint32_t s = 0; s < t.steps.size(); ++s) {
-				t.steps[s].t += offset.t;
-				t.steps[s].p += offset.p;
-			}
-			t.sources_dirty = true;
-		}
-	}
-	virtual void draw() override {
-	}
-	FreiScale &fs;
-	Trigger &t;
-	std::vector< TimeLog2Hz > original;
-	TimeLog2Hz reference;
-};
+			std::vector< TimeLog2Hz > new_steps = original_steps;
 
-struct MoveStepAction : public Action {
-	MoveStepAction(FreiScale &fs_, Trigger &t_, uint32_t idx_) : fs(fs_), t(t_), idx(idx_), reference(fs.get_song_position(fs.mouse)) {
-		original = t.steps;
-	}
-	virtual ~MoveStepAction() {
-	}
-	virtual void handle_event(SDL_Event const &evt) override {
-		if (evt.type == SDL_MOUSEBUTTONUP) {
-			if (evt.button.button == SDL_BUTTON_LEFT) {
-				fs.action.reset();
-				return;
-			}
-		}
-		if (evt.type == SDL_KEYDOWN) {
-			if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
-				//TODO: preview playback trigger/cancel
-			} else if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
-				//cancel action
-				t.steps = original;
-				t.sources_dirty = true;
-				fs.action.reset();
-			}
-		}
-		if (evt.type == SDL_MOUSEMOTION) {
-			fs.mouse = glm::vec2( evt.motion.x + 0.5f, (kit::display.window_size.y - 1 - evt.motion.y) + 0.5f );
-			TimeLog2Hz current = fs.get_song_position(fs.mouse);
+			if (idx < new_steps.size()) {
+				new_steps[idx].t += offset.t;
+				new_steps[idx].p += offset.p;
 
-			TimeLog2Hz offset(current.t - reference.t, current.p - reference.p);
-
-			t.steps = original;
-			if (idx < t.steps.size()) {
-				t.steps[idx].t = original[idx].t + offset.t;
-				t.steps[idx].p = original[idx].p + offset.p;
-
-				if (idx > 0 && t.steps[idx].t < t.steps[idx-1].t) {
-					float delta = t.steps[idx].t - t.steps[idx-1].t;
+				if (idx > 0 && new_steps[idx].t < new_steps[idx-1].t) {
+					float delta = new_steps[idx].t - new_steps[idx-1].t;
 					for (uint32_t i = 0; i < idx; ++i) {
-						t.steps[i].t += delta;
+						new_steps[i].t += delta;
 					}
 				}
 
-				if (idx + 1 < t.steps.size() && t.steps[idx].t > t.steps[idx+1].t) {
-					float delta = t.steps[idx].t - t.steps[idx+1].t;
-					for (uint32_t i = idx + 1; i < t.steps.size(); ++i) {
-						t.steps[i].t += delta;
+				if (idx + 1 < new_steps.size() && new_steps[idx].t > new_steps[idx+1].t) {
+					float delta = new_steps[idx].t - new_steps[idx+1].t;
+					for (uint32_t i = idx + 1; i < new_steps.size(); ++i) {
+						new_steps[i].t += delta;
 					}
 				}
 
-				t.sources_dirty = true;
 			} else {
-				//??? bad index
+				for (auto &s : new_steps) {
+					s.t += offset.t;
+					s.p += offset.p;
+				}
 			}
+
+			t = std::make_shared< Trigger >(original_sound, new_steps);
+			t->fix_steps();
 		}
 	}
 	virtual void draw() override {
 	}
 	FreiScale &fs;
-	Trigger &t;
-	uint32_t idx; //0 -> start, 1 .. N -> steps
-
-	std::vector< TimeLog2Hz > original;
+	std::shared_ptr< Trigger > &t;
+	uint32_t idx;
+	std::shared_ptr< Sound const > original_sound;
+	std::vector< TimeLog2Hz > original_steps;
 	TimeLog2Hz reference;
 };
 
@@ -699,7 +586,7 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				} else if (mod_state & KMOD_ALT) {
 					composition->loop_end = get_song_position(mouse).t;
 				} else {
-					Trigger *song_trigger = nullptr;
+					std::shared_ptr< Trigger > *song_trigger = nullptr;
 					if (hovered.song_trigger_segment.first) song_trigger = hovered.song_trigger_segment.first;
 					if (hovered.song_trigger_handle.first) song_trigger = hovered.song_trigger_handle.first;
 					if (song_trigger) {
@@ -775,28 +662,38 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				trigger->steps[1] = trigger->steps[0];
 				trigger->steps[1].t += 1.0f;
 				composition->triggers.emplace_back(trigger);
-
-				action.reset(new MoveTriggerAction(*this, *composition->triggers.back()));
+				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));
 				return;
+			}
+		} else if (evt.key.keysym.sym == SDLK_x) {
+			//delete trigger
+			if (song_box.contains(mouse) && hovered.song_trigger_segment.first) {
+				uint32_t idx = hovered.song_trigger_segment.first - &composition->triggers[0];
+				if (idx < composition->triggers.size()) {
+					composition->triggers.erase(composition->triggers.begin() + idx);
+				}
 			}
 		} else if (evt.key.keysym.sym == SDLK_s) {
 			//add new step to trigger
 			if (song_box.contains(mouse) && hovered.song_trigger_segment.first) {
 				auto &trigger = *hovered.song_trigger_segment.first;
+
+				std::vector< TimeLog2Hz > steps = trigger->steps;
 				TimeLog2Hz pos = get_song_position(mouse);
 				uint32_t before = 0;
-				while (before < trigger.steps.size() && pos.t > trigger.steps[before].t) {
+				while (before < steps.size() && pos.t > steps[before].t) {
 					++before;
 				}
-				trigger.steps.insert(trigger.steps.begin() + before, TimeLog2Hz(pos.t, pos.p - std::log2(trigger.sound->fundamental)));
+				steps.insert(steps.begin() + before, TimeLog2Hz(pos.t, pos.p - std::log2(trigger->sound->fundamental)));
+				trigger = std::make_shared< Trigger >(trigger->sound, steps);
 
-				action.reset(new MoveStepAction(*this, *hovered.song_trigger_segment.first, before));
+				action.reset(new MoveTriggerAction(*this, trigger, before));
 				return;
 			}
 		} else if (evt.key.keysym.sym == SDLK_g) {
 			//grab step in trigger
 			if (song_box.contains(mouse) && hovered.song_trigger_handle.first) {
-				action.reset(new MoveStepAction(*this, *hovered.song_trigger_handle.first, hovered.song_trigger_handle.second));
+				action.reset(new MoveTriggerAction(*this, *hovered.song_trigger_handle.first, hovered.song_trigger_handle.second));
 				return;
 			}
 		} else if (evt.key.keysym.scancode == SDL_SCANCODE_SPACE) {
@@ -887,7 +784,7 @@ void FreiScale::update_hovered() {
 		float close_handle = 10.0f;
 		float close_segment = 10.0f;
 
-		auto check_handle = [&](glm::vec2 const &px, Trigger &t, uint32_t idx) {
+		auto check_handle = [&](glm::vec2 const &px, std::shared_ptr< Trigger > &t, uint32_t idx) {
 			float d = std::max(std::abs(px.x - mouse.x), std::abs(px.y - mouse.y));
 			if (d < close_handle) {
 				close_handle = d;
@@ -895,7 +792,7 @@ void FreiScale::update_hovered() {
 			}
 		};
 
-		auto check_segment = [&](glm::vec2 const &a, glm::vec2 const &b, Trigger &t, uint32_t idx) {
+		auto check_segment = [&](glm::vec2 const &a, glm::vec2 const &b, std::shared_ptr< Trigger > &t, uint32_t idx) {
 			float along = glm::dot(mouse - a, b - a);
 			along = std::max(along, 0.0f);
 			along = std::min(along, glm::dot(b-a, b-a));
@@ -911,9 +808,9 @@ void FreiScale::update_hovered() {
 			glm::vec2 prev_px = glm::vec2(0.0f);
 			for (uint32_t s = 0; s < t->steps.size(); ++s) {
 				glm::vec2 px = get_screen_position(TimeLog2Hz(t->steps[s].t, t->steps[s].p + offset_p));
-				check_handle(px, *t, s);
+				check_handle(px, t, s);
 				if (s > 0) {
-					check_segment(prev_px, px, *t, s);
+					check_segment(prev_px, px, t, s);
 				}
 				prev_px = px;
 			}

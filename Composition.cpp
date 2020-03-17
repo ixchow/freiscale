@@ -90,18 +90,21 @@ Composition Composition::load(std::string const &path) {
 	std::cout << "Loaded " << sounds.size() << " sounds." << std::endl;
 
 	for (auto &trg : trg0) {
-		//NOTE: triggers *must* have at least one point, thus >= in begin/end compare:
-		if (trg.begin >= trg.end || trg.end > tps0.size()) {
+		//NOTE: triggers *must* have at least two points:
+		if (!(trg.begin + 1 < trg.end && trg.end <= tps0.size())) {
 			throw std::runtime_error("trg0 with out-of-range index");
 		}
 		if (trg.snd >= sounds.size()) {
 			throw std::runtime_error("trg0 with out-of-range sound");
 		}
 		std::shared_ptr< Trigger > trigger = std::make_shared< Trigger >(sounds[trg.snd]);
+		trigger->steps.clear();
 		for (uint32_t i = trg.begin; i < trg.end; ++i) {
 			trigger->steps.emplace_back(tps0[i].t, tps0[i].p);
 		}
+		trigger->fix_steps();
 		ret.triggers.emplace_back(trigger);
+		trigger->compute_sources();
 	}
 
 	std::cout << "Loaded " << ret.triggers.size() << " triggers." << std::endl;

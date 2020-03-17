@@ -58,8 +58,8 @@ struct FreiScale : kit::Mode {
 	struct {
 		Folder const *library_folder = nullptr;
 		Sound *library_sound = nullptr;
-		std::pair< Trigger *, uint32_t > song_trigger_handle = std::make_pair(nullptr, 0U); //NOTE: 0 is the 'start' handle, 1 - N the 'step' handles
-		std::pair< Trigger *, uint32_t > song_trigger_segment = std::make_pair(nullptr, 0U); //NOTE: 0 is the segment from the start to the first step
+		std::pair< std::shared_ptr< Trigger > *, uint32_t > song_trigger_handle = std::make_pair(nullptr, 0U); //NOTE: 0 is the 'start' handle, 1 - N the 'step' handles
+		std::pair< std::shared_ptr< Trigger > *, uint32_t > song_trigger_segment = std::make_pair(nullptr, 0U); //NOTE: 0 is the segment from the start to the first step
 		void clear() {
 			library_folder = nullptr;
 			library_sound = nullptr;

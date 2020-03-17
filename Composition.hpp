@@ -52,12 +52,12 @@ struct Sound : std::vector< Sample > {
 
 //Trigger a Sound at a given time/pitch:
 struct Trigger {
-	Trigger(std::shared_ptr< Sound const > sound_) : sound(sound_) {
+	Trigger(std::shared_ptr< Sound const > sound_, std::vector< TimeLog2Hz > steps_ = { TimeLog2Hz(0.0f, 0.0f), TimeLog2Hz(1.0f, 0.0f) } ) : sound(sound_), steps(steps_) {
 		assert(sound);
 	}
 	std::shared_ptr< Sound const > sound;
 	//pitch/time position points:
-	std::vector< TimeLog2Hz > steps = { TimeLog2Hz(0.0f, 0.0f), TimeLog2Hz(1.0f, 0.0f) };
+	std::vector< TimeLog2Hz > steps;
 	//NOTE: steps are (sorted) *absolute* time, *absolute* speed change
 	//*must* have at least two steps.
 
@@ -87,7 +87,7 @@ struct Trigger {
 
 	//for every output sample in the range [start.t, end.t], use this input sample:
 	//(computed from steps)
-	std::vector< Time > sources;
+	std::vector< float > sources;
 	bool sources_dirty = true;
 	void compute_sources();
 };
@@ -154,6 +154,8 @@ struct Composition {
 		std::vector< Sample > samples;
 		std::vector< std::array< float, SpectrumSize > > spectrums;
 		void render(); //compute samples + spectrums
+
+		uint32_t DEBUG_id = 0;
 
 	};
 	static constexpr int32_t BlockSize = SampleRate / 2;
