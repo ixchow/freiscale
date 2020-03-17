@@ -27,13 +27,13 @@ void Composition::update_rendered(Time focus) {
 				}
 				std::shared_ptr< RenderBlock > block = pending.back();
 				pending.pop_back();
-				std::cout << "Doing block " << block->DEBUG_id << std::endl;
+				//std::cout << "Doing block " << block->DEBUG_id << std::endl;
 				lock.unlock();
 
 				block->render();
 
 				lock.lock();
-				std::cout << "       done " << block->DEBUG_id << std::endl;
+				//std::cout << "       done " << block->DEBUG_id << std::endl;
 				finished.emplace_back(block);
 			}
 		});
@@ -116,8 +116,8 @@ void Composition::update_rendered(Time focus) {
 		std::vector< std::shared_ptr< Composition::RenderBlock > > new_pending;
 		for (auto &[ block, ptr ] : rendered) {
 			if (ptr->dirty) {
-				static uint32_t fresh_id = 1;
-				ptr->DEBUG_id = fresh_id++;
+				//static uint32_t fresh_id = 1;
+				//ptr->DEBUG_id = fresh_id++;
 				new_pending.emplace_back(ptr);
 			}
 		}

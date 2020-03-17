@@ -155,7 +155,7 @@ struct Composition {
 		std::vector< std::array< float, SpectrumSize > > spectrums;
 		void render(); //compute samples + spectrums
 
-		uint32_t DEBUG_id = 0;
+		//uint32_t DEBUG_id = 0;
 
 	};
 	static constexpr int32_t BlockSize = SampleRate / 2;

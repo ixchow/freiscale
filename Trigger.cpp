@@ -23,9 +23,11 @@ void Trigger::compute_sources() {
 			continue;
 		}
 
+		/*
 		if (std::abs(p1 - p0) < 1e-4f) {
 			p1 = p0 + 1e-4f;
 		}
+		*/
 
 		float a = (p1 - p0) / float(s1 - s0);
 		float b = p0;
