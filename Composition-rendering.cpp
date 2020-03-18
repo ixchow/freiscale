@@ -4,6 +4,8 @@
 #include <condition_variable>
 #include <thread>
 #include <iostream>
+#include <algorithm>
+#include <array>
 
 static std::vector< std::shared_ptr< Composition::RenderBlock > > finished;
 static std::vector< std::shared_ptr< Composition::RenderBlock > > pending;
