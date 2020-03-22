@@ -300,7 +300,7 @@ void FreiScale::draw() {
 				//peaks:
 				assert(t->sources.size() == t->source_speeds.size());
 				for (uint32_t i = 0; i < t->sources.size(); ++i) {
-					int32_t peak = std::round( i / float(SampleRate) * PeaksRate );
+					int32_t peak = std::round( t->sources[i] / float(SampleRate) * PeaksRate );
 					if (peak < 0 || peak * PeaksSlots >= t->sound->peaks.size()) continue;
 
 					float time = (std::round( t->steps[0].t * SampleRate ) + i ) / float(SampleRate);

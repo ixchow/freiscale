@@ -99,6 +99,8 @@ Then 3000 / 2048 = 1.4648Hz up to 1.5kHz (at ~915)
 
 TODOs:
 
- - trigger step hovering / editing --> creating first step seems a bit broken
- - trigger steps -> absolute? probably simpler to deal with in general
  - (analysis)
+ - export
+ - better fundamentals
+ - font characters for folder stuff
+

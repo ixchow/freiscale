@@ -102,12 +102,13 @@ void Sound::compute_viz() {
 		});
 
 		std::pair< float, float > *out = &(peaks[peaks_index * PeaksSlots]);
-		std::cout << peaks_index << ": ";
+
+		//std::cout << peaks_index << ": ";
 		for (uint32_t i = 0; i < found.size() && i < PeaksSlots; ++i) {
 			out[i] = std::make_pair(found[i].second, found[i].first);
-			std::cout << out[i].second << "@" << out[i].first << "Hz ";
+			//std::cout << out[i].second << "@" << out[i].first << "Hz ";
 		}
-		std::cout << std::endl;
+		//std::cout << std::endl;
 	}
 
 	float min = std::numeric_limits< float >::infinity();
@@ -132,5 +133,18 @@ void Sound::compute_viz() {
 	}
 	std::cout << " => Peak powers in [" << min << ", " << max << "]." << std::endl;
 
+	{ //figure out fundamental from peaks:
+		float fundamental = 440.0f;
+		float fundamental_power = 0.0f;
+		for (uint32_t s = 0; s < PeaksSlots * 5 && s < peaks.size(); ++s) {
+			auto [ freq, power ] = peaks[s];
+			if (freq >= 0.0f && power > fundamental_power) {
+				fundamental = freq;
+				fundamental_power = power;
+			}
+		}
+		std::cout << "fundamental: " << fundamental << " @ " << fundamental_power << " of max power " << max << std::endl; //DEBUG
+		Sound::fundamental = fundamental;
+	}
 
 }
