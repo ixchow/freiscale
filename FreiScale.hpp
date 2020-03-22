@@ -33,7 +33,7 @@ struct FreiScale : kit::Mode {
 	float library_top = 0.0f; //top, in terms of item heights
 
 	//set during drawing:
-	std::vector< std::pair< UIBox, Folder const * > > library_folder_boxes;
+	std::vector< std::pair< UIBox, Folder * > > library_folder_boxes;
 	std::vector< std::pair< UIBox, Sound * > > library_sound_boxes;
 
 	UIBox song_box;
@@ -56,7 +56,7 @@ struct FreiScale : kit::Mode {
 
 
 	struct {
-		Folder const *library_folder = nullptr;
+		Folder *library_folder = nullptr;
 		Sound *library_sound = nullptr;
 		std::pair< std::shared_ptr< Trigger > *, uint32_t > song_trigger_handle = std::make_pair(nullptr, 0U); //NOTE: 0 is the 'start' handle, 1 - N the 'step' handles
 		std::pair< std::shared_ptr< Trigger > *, uint32_t > song_trigger_segment = std::make_pair(nullptr, 0U); //NOTE: 0 is the segment from the start to the first step

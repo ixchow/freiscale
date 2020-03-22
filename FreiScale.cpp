@@ -656,6 +656,14 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 					Output::playing_position = 0;
 					Output::unlock();
 				}
+			} else if (hovered.library_folder) {
+				if (evt.button.button == SDL_BUTTON_LEFT) {
+					if (hovered.library_folder->state == Folder::Expanded) {
+						hovered.library_folder->state = Folder::Collapsed;
+					} else if (hovered.library_folder->state == Folder::Collapsed) {
+						hovered.library_folder->state = Folder::Expanded;
+					}
+				}
 			}
 		}
 	}

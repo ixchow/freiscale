@@ -18,7 +18,7 @@ void expand_folder(std::string const &path, Folder &folder) {
 		folder.state = Folder::Error;
 		return;
 	}
-	folder.state = Folder::Expanded;
+	folder.state = Folder::Collapsed; //but still preload
 	for (auto const &dirname : dirnames) {
 		folder.folders.emplace(dirname, Folder());
 	}
