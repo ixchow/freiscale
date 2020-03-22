@@ -32,6 +32,7 @@ if $(OS) != NT {
 }
 ObjectC++Flags Sound-compute_spectrums.cpp : -I$(OTFFT_DIR) ;
 ObjectC++Flags Sound-viz.cpp : -I$(OTFFT_DIR) ;
+ObjectC++Flags Composition-rendering.cpp : -I$(OTFFT_DIR) ;
 
 MyObjects $(NAMES) ;
 

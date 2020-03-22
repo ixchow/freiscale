@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kit/gl.hpp>
+
 #include <vector>
 #include <list>
 #include <cstdint>
@@ -8,6 +10,8 @@
 #include <memory>
 #include <map>
 #include <cassert>
+#include <iostream>
+#include <set>
 
 //sample rate:
 constexpr uint32_t SampleRate = 48000;
@@ -15,7 +19,10 @@ constexpr uint32_t SampleRate = 48000;
 constexpr uint32_t SpectrumRate = 100; //spectrums per second
 static_assert(SampleRate % SpectrumRate == 0, "Spectrums start on sample boundaries.");
 constexpr uint32_t SpectrumStep = SampleRate / SpectrumRate; //sample offset between subsequent spectrums
-constexpr uint32_t SpectrumSize = 2048;
+
+constexpr float SpectrumMinHz = 20.0f;
+constexpr float SpectrumMaxHz = 20000.0f;
+constexpr uint32_t SpectrumBins = 2000; //equally distributed in log2hz between min and max
 
 constexpr uint32_t PeaksRate = 100; //peaks per second
 constexpr uint32_t PeaksSlots = 20; //peaks to retain per sample
@@ -153,12 +160,20 @@ struct Composition {
 
 		//empty unless block is freshly rendered:
 		std::vector< Sample > samples;
-		std::vector< std::array< float, SpectrumSize > > spectrums;
+		std::vector< std::array< float, SpectrumBins > > spectrums;
 		void render(); //compute samples + spectrums
 
 		//uint32_t DEBUG_id = 0;
-
+		GLuint tex = 0;
+		~RenderBlock() {
+			if (tex != 0) {
+				std::cout << "WARNING: leaking texture handles (" << tex << ")." << std::endl;
+			}
+		}
 	};
+
+	std::set< GLuint > unused_tex;
+
 	static constexpr int32_t BlockSize = SampleRate / 2;
 	std::map< int32_t, std::shared_ptr< RenderBlock > > rendered;
 

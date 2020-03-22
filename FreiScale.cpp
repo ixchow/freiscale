@@ -176,7 +176,7 @@ void FreiScale::draw() {
 		}
 	}*/
 
-	{ //song box ready:
+	{ //song blocks ready:
 		std::vector< DrawStuff::Pos2f_Col4ub > tristrip;
 
 		for (auto const &[ idx, ptr ] : composition->rendered) {
@@ -201,6 +201,47 @@ void FreiScale::draw() {
 		}
 
 		DrawStuff::draw(px_to_clip, GL_TRIANGLE_STRIP, tristrip);
+	}
+
+	{ //Draw spectrums for blocks that have 'em:
+		for (auto const &[ idx, ptr ] : composition->rendered) {
+			if (ptr->tex == 0) continue;
+			glm::vec2 min = get_screen_position(TimeLog2Hz( ptr->start_sample / float(SampleRate), std::log2(SpectrumMinHz) ));
+			glm::vec2 max = get_screen_position(TimeLog2Hz( (ptr->start_sample + Composition::BlockSize) / float(SampleRate), std::log2(SpectrumMaxHz) ));
+
+			//DEBUG:
+			//min = song_box.min;
+			//max = song_box.max;
+
+			std::vector< SpectrumVertex > attribs{
+				{glm::vec2(min.x, min.y), glm::vec2(0.0f, 0.0f ) },
+				{glm::vec2(min.x, max.y), glm::vec2(1.0f, 0.0f ) },
+				{glm::vec2(max.x, min.y), glm::vec2(0.0f, 1.0f ) },
+				{glm::vec2(max.x, max.y), glm::vec2(1.0f, 1.0f ) }
+			};
+			glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+			glBufferData(GL_ARRAY_BUFFER, attribs.size() * sizeof(attribs[0]), attribs.data(), GL_STREAM_DRAW);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+			glUseProgram(spectrum_program->program);
+
+			glBindVertexArray(vertex_buffer_for_spectrum_program);
+
+			glBindTexture(GL_TEXTURE_2D, ptr->tex);
+
+			glUniformMatrix4fv(spectrum_program->OBJECT_TO_CLIP_mat4, 1, GL_FALSE, glm::value_ptr(px_to_clip));
+
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, GLsizei(attribs.size()));
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+
+			glBindVertexArray(0);
+
+			glUseProgram(0);
+
+			GL_ERRORS();
+		}
+
 	}
 
 	{ //song box background:
@@ -758,29 +799,6 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 						std::cout << "  rendering..." << std::endl;
 						std::vector< Sample > buffer;
 						composition->render(loop_begin, loop_end, &buffer);
-
-/*
-						std::cout << "  analyzing..." << std::endl;
-						Sound temp = Sound::from_samples(buffer.data(), buffer.data() + buffer.size());
-						temp.compute_spectrums();
-
-						if (spectrum_tex == 0) glGenTextures(1, &spectrum_tex);
-						glBindTexture(GL_TEXTURE_2D, spectrum_tex);
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SpectrumBins, temp.spectrums.size() / SpectrumBins, 0, GL_RED, GL_FLOAT, temp.spectrums.data());
-
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-						glGenerateMipmap(GL_TEXTURE_2D);
-
-						glBindTexture(GL_TEXTURE_2D, 0);
-
-						spectrum_tex_t0 = composition->loop_begin;
-						spectrum_tex_t1 = composition->loop_end;
-*/
 
 						std::cout << "  playing..." << std::endl;
 						std::vector< Output::Sample > preview;
