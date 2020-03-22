@@ -297,7 +297,39 @@ void FreiScale::draw() {
 					at_px = next_px;
 				}
 
-			
+				//peaks:
+				assert(t->sources.size() == t->source_speeds.size());
+				for (uint32_t i = 0; i < t->sources.size(); ++i) {
+					int32_t peak = std::round( i / float(SampleRate) * PeaksRate );
+					if (peak < 0 || peak * PeaksSlots >= t->sound->peaks.size()) continue;
+
+					float time = (std::round( t->steps[0].t * SampleRate ) + i ) / float(SampleRate);
+
+
+					std::pair< float, float > const *slots = &(t->sound->peaks[PeaksSlots * peak]);
+					for (uint32_t s = 0; s < PeaksSlots; ++s) {
+						if (slots[s].first <= 0.0f) continue;
+						//std::cout << slots[s].first << "/" << warped_peaks[peak].t << "/" << warped_peaks[peak].p << std::endl;
+						int32_t amt = 255.0f * slots[s].second;
+						amt = std::max(0, std::min(255, amt));
+						glm::u8vec4 color = glm::u8vec4(0x0, amt, 0x0, 0xff);
+
+						if(&t == hovered.song_trigger_handle.first || &t == hovered.song_trigger_segment.first) {
+							color.r = color.g;
+						}
+
+						float p = t->source_speeds[i] + glm::log2(slots[s].first);
+
+						points.emplace_back( get_screen_position(TimeLog2Hz(time, p)), color );
+					}
+
+/*
+					points.emplace_back( get_screen_position(TimeLog2Hz(
+						(std::round( t->steps[0].t * SampleRate ) + i ) / float(SampleRate),
+						t->source_speeds[i] + offset_p )),
+						glm::u8vec4(0xff, 0x88, 0x00, 0xff) );
+					*/
+				}
 
 				/*
 				//peaks:

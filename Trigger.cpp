@@ -10,10 +10,13 @@ void Trigger::compute_sources() {
 	//So write down where (in source sound) time_ofs, time_ofs + 1 / SampleRate, ... come from:
 	sources.clear();
 	sources.reserve(end_sample - begin_sample + 1);
+	source_speeds.clear();
+	source_speeds.reserve(end_sample - begin_sample + 1);
 
 	int32_t s0 = int32_t(std::round(steps[0].t * SampleRate));
 	float p0 = steps[0].p;
 	sources.emplace_back(0.0f);
+	source_speeds.emplace_back(p0);
 
 	for (uint32_t i = 1; i < steps.size(); ++i) {
 		int32_t s1 = int32_t(std::round(steps[i].t * SampleRate));
@@ -68,6 +71,8 @@ void Trigger::compute_sources() {
 					))))))))))))))))
 				)
 			);
+
+			source_speeds.emplace_back( a * x + b );
 		}
 
 		p0 = p1;
@@ -75,4 +80,5 @@ void Trigger::compute_sources() {
 	}
 
 	assert(sources.size() == size_t(end_sample - begin_sample + 1));
+	assert(source_speeds.size() == size_t(end_sample - begin_sample + 1));
 }

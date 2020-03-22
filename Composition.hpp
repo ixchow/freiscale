@@ -88,6 +88,7 @@ struct Trigger {
 	//for every output sample in the range [start.t, end.t], use this input sample:
 	//(computed from steps)
 	std::vector< float > sources;
+	std::vector< float > source_speeds; //source speeds, log2factor -- used for peak display
 	bool sources_dirty = true;
 	void compute_sources();
 };
