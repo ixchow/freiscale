@@ -6,6 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <array>
+#include <chrono>
 
 #include "otfft/otfft.h"
 constexpr uint32_t FFTSize = (1<<13);
@@ -19,6 +20,43 @@ static std::list< std::thread > render_threads;
 static bool quit_flag = false;
 
 constexpr uint32_t BlockPadding = FFTSize / 2;
+
+
+
+void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer_, bool blocking) {
+	assert(begin_sample <= end_sample);
+	assert(buffer_);
+	auto &buffer = *buffer_;
+	buffer.assign(end_sample - begin_sample, Sample(0));
+
+	if (blocking) {
+		while (true) {
+			update_rendered((begin_sample + end_sample) / float(2 * SampleRate));
+			uint32_t dirty = 0;
+			for (auto const &[ idx, block ] : rendered) {
+				if (block->dirty) {
+					++dirty;
+				}
+			}
+			if (dirty == 0) break;
+			std::cout << "Waiting for " << dirty << " blocks to finish..." << std::endl;
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+	}
+
+
+	for (auto const &[ idx, block ] : rendered) {
+		if (block->dirty) continue;
+		assert(block->samples.size() == BlockSize);
+
+		int32_t begin = std::max(begin_sample, block->start_sample);
+		int32_t end = std::min< int32_t >(end_sample, block->start_sample + BlockSize);
+		for (int32_t s = begin; s < end; ++s) {
+			buffer[s-begin_sample] = block->samples[s-block->start_sample];
+		}
+	}
+}
+
 
 void Composition::update_rendered(Time focus) {
 
@@ -180,16 +218,29 @@ void Composition::RenderBlock::render() {
 	int32_t padded_begin = start_sample - int32_t(BlockPadding);
 	int32_t padded_end = padded_begin + int32_t(padded.size());
 
+	constexpr int32_t FadeLen = SampleRate / 20;
+
 	for (auto const &t : triggers) {
 		int32_t t_begin = t->begin_sample();
 		int32_t t_end = t_begin + int32_t(t->sources.size());
 
+		int32_t t_fade = std::max(t_begin, t_end - FadeLen);
+
 		int32_t begin = std::max(padded_begin, t_begin);
-		int32_t end = std::min(padded_end, t_end);
+		int32_t end = std::min(padded_end, t_fade);
 		for (int32_t s = begin; s < end; ++s) {
 			int32_t from = int32_t(std::round(t->sources[s-t_begin]));
 			if (from > 0 && from < int32_t(t->sound->size())) {
 				padded[s-padded_begin] += (*t->sound)[from];
+			}
+		}
+		int32_t f_begin = std::max(padded_begin, t_fade);
+		int32_t f_end = std::min(padded_end, t_end);
+		for (int32_t s = f_begin; s < f_end; ++s) {
+			int32_t from = int32_t(std::round(t->sources[s-t_begin]));
+			if (from > 0 && from < int32_t(t->sound->size())) {
+				float amt = (f_end - s) / float(FadeLen);
+				padded[s-padded_begin] += amt * (*t->sound)[from];
 			}
 		}
 	}

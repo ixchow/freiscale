@@ -22,24 +22,6 @@ std::shared_ptr< Sound const > Composition::add_sound(Sound const &sound) {
 	return sounds.back();
 }
 
-void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer_) {
-	assert(begin_sample <= end_sample);
-	assert(buffer_);
-	auto &buffer = *buffer_;
-	buffer.assign(end_sample - begin_sample, Sample(0));
-
-	for (auto const &[ idx, block ] : rendered) {
-		if (block->dirty) continue;
-		assert(block->samples.size() == BlockSize);
-
-		int32_t begin = std::max(begin_sample, block->start_sample);
-		int32_t end = std::min< int32_t >(end_sample, block->start_sample + BlockSize);
-		for (int32_t s = begin; s < end; ++s) {
-			buffer[s-begin_sample] = block->samples[s-block->start_sample];
-		}
-	}
-}
-
 struct FS2_snd0 {
 	uint32_t begin;
 	uint32_t end;

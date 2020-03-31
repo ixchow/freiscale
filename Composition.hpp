@@ -144,7 +144,8 @@ struct Composition {
 	//  begin_sample <= end_sample
 	//  buffer != nullptr
 	//Renders [begin_sample, end_sample) to buffer (copies from render blocks, actually)
-	void render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer);
+	// if blocking, waits for all dirty blocks to finish; otherwise inserts blank audio.
+	void render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer, bool blocking = false);
 
 	//load/save:
 	static Composition load(std::string const &path);

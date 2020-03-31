@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <fstream>
 
 
 static GLuint vertex_buffer = 0;
@@ -733,8 +734,25 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 			std::string filename = "temp.fs";
 			composition->save(filename);
 			std::cout << "Wrote '" << filename << "'." << std::endl;
+		} else if (evt.key.keysym.sym == SDLK_F1) {
+			//save rendering:
+			std::string filename = "temp.f32.raw";
+			int32_t loop_begin = composition->loop_begin * SampleRate;
+			int32_t loop_end = composition->loop_end * SampleRate;
+			if (loop_begin < loop_end) {
+				std::cout << "  rendering..." << std::endl;
+				std::vector< Sample > buffer;
+				composition->render(loop_begin, loop_end, &buffer, true);
+
+				std::cout << "  saving '" << filename << "'..." << std::endl;
+				{
+					std::ofstream file(filename, std::ios::binary);
+					file.write( reinterpret_cast< const char *>(buffer.data()), sizeof(Sample) * buffer.size() );
+				}
+				std::cout << "  done." << std::endl;
+			}
 		} else if (evt.key.keysym.sym == SDLK_c) {
-			//"create" new trigger
+			//create new trigger
 			if (song_box.contains(mouse) && current_library_sound) {
 				std::cout << "Make Trigger!" << std::endl;
 				std::shared_ptr< Trigger > trigger = std::make_shared< Trigger >(composition->add_sound(*current_library_sound));
@@ -746,6 +764,16 @@ void FreiScale::handle_event(SDL_Event const &evt) {
 				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));
 				return;
 			}
+		} else if (evt.key.keysym.sym == SDLK_d) {
+			//duplicate a trigger
+			if (song_box.contains(mouse) && hovered.song_trigger_segment.first) {
+				std::cout << "Copy Trigger!" << std::endl;
+				std::shared_ptr< Trigger > trigger = std::make_shared< Trigger >(**hovered.song_trigger_segment.first);
+				composition->triggers.emplace_back(trigger);
+				action.reset(new MoveTriggerAction(*this, composition->triggers.back()));
+				return;
+			}
+
 		} else if (evt.key.keysym.sym == SDLK_x) {
 			//delete trigger
 			if (song_box.contains(mouse) && hovered.song_trigger_segment.first) {
