@@ -1,3 +1,53 @@
+Frequency band picking:
+ - consider using pinv([ actual stack of cosines/sines we care about]) <-- problem is windowing (should really be per-frequency)
+ - consider repeated convolution idea; low-pass over and over again and pull out just the difference (problem w/ transient smearing?)
+
+  Thinking of frequency band smearing:
+   - consider question of simulated-ear-style receptor
+   - what do pipe-organ transients look like?
+   - is there a no-lag / one-sided lowpass? what does that mean?
+
+ - build test suite of finely swept waves and look at binning accuracy. What do we actually want?
+ - build test suite of finely swept waves and compute the matrix based on desired output(!)
+
+
+How big is the test suite? How big is the matrix?
+
+128 steps / octave (120 JND's but why not be power-of-two-y?)
+2^4Hz (16Hz) - 2^14.3Hz (20161Hz) => 10.3 octaves => ~1316 steps/bins
+
+What are we detecting? Some sort of minimal wavelet thing, I guess.
+So call that maybe 4x wavelengths.
+16Hz => 48000/16*4 = 1200 samples
+2^(4+1315/128)Hz => 9.70 samples
+
+xform is "I just want to multiply by a 1200 * 1315 matrix" (?)
+xform is " ... where of course some parts are zero" (?)
+
+ "explain this sound in terms 1315 damped plucks starting right now, with [ideally] sparsity on the weights"
+
+ Still have a windowing problem because sound does continue.
+ Filter bank option seems great except it's letting through only little epsilons of sound.
+  (maybe the answer is to sum energy after each filtering and compare the total energies?)
+ Phased plucks on filter bank output seems interesting potentially.
+
+
+TESTING PLAN:
+ - build test harness with phased plucks, constant sines
+ - use 'lil steps (smaller than 128/octave) to test 
+ - produce plots of "spectrogram" vs frequency <-- frequency accuracy
+ - produce plots of fancy peak finding vs frequency <-- frequency accuracy
+ - produce plots of peak-response-power vs time <-- time accuracy
+ - baseline: FFT with peak finding, I guess?
+ - frequency bank method
+ - damped spring bank method
+ - reverse damped spring bank method
+ - some sort of pinv-like method where the goal is to put power into each coef but penalty only considers (gently) bandpassed version of the sound(?)
+
+ rather than dampped spring model, try a model where the sound is granularized and looped and the fit constant waves
+
+----
+
 Big ideas:
  - samples get mixed in 8.24 fixed point (maybe?) @ 48kHz
  - samples get arranged in log2hz vs time space
