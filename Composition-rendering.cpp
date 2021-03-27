@@ -22,6 +22,18 @@ static bool quit_flag = false;
 constexpr uint32_t BlockPadding = FFTSize / 2;
 
 
+void Composition::quit_render_threads() {
+	{
+		std::unique_lock< std::mutex > lock(mutex);
+		quit_flag = true;
+		cv.notify_all();
+	}
+	//wait for 'em to finish:
+	while (!render_threads.empty()) {
+		render_threads.back().join();
+		render_threads.pop_back();
+	}
+}
 
 void Composition::render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer_, bool blocking) {
 	assert(begin_sample <= end_sample);
@@ -63,6 +75,7 @@ void Composition::update_rendered(Time focus) {
 	while (render_threads.size() < 4) {
 		render_threads.emplace_back([](){
 			std::unique_lock< std::mutex > lock(mutex);
+			std::cout << "Render thread started." << std::endl;
 			while (!quit_flag) {
 				if (pending.empty()) {
 					cv.wait(lock);
@@ -80,6 +93,7 @@ void Composition::update_rendered(Time focus) {
 				//std::cout << "       done " << block->DEBUG_id << std::endl;
 				finished.emplace_back(block);
 			}
+			std::cout << "Render thread stopped." << std::endl;
 		});
 	}
 

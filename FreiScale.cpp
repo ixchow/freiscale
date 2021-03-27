@@ -68,6 +68,10 @@ FreiScale::FreiScale(std::string const &library_path) : library(library_path) {
 }
 
 FreiScale::~FreiScale() {
+	std::cout << "--- attempting to quit gracefully ---" << std::endl;
+	Composition::quit_render_threads();
+	Output::shutdown();
+	std::cout << "--- well, that was my attempt ---" << std::endl;
 }
 
 void FreiScale::resized() {

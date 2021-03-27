@@ -147,6 +147,8 @@ struct Composition {
 	// if blocking, waits for all dirty blocks to finish; otherwise inserts blank audio.
 	void render(int32_t begin_sample, int32_t end_sample, std::vector< Sample > *buffer, bool blocking = false);
 
+	static void quit_render_threads();
+
 	//load/save:
 	static Composition load(std::string const &path);
 	void save(std::string const &path) const;

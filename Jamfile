@@ -1,6 +1,12 @@
 KIT_RAW_SDL_EVENTS = 1 ;
 
+
 SubDir TOP ;
+
+#Profiling:
+#C++FLAGS += -pg ;
+#LINKFLAGS += -pg ;
+
 SubInclude TOP kit ;
 
 MySubDir TOP ;
@@ -26,6 +32,7 @@ local NAMES =
 ;
 
 OTFFT_DIR = otfft-11.5e ;
+
 
 if $(OS) != NT {
 	ObjectC++Flags $(NAMES) : -mavx ; #match otfft.o flags
