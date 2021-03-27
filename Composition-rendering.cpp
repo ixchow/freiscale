@@ -70,6 +70,7 @@ void Composition::update_rendered(Time focus) {
 				}
 				std::shared_ptr< RenderBlock > block = pending.back();
 				pending.pop_back();
+				block->pending = false; //mark as no longer being in pending queue
 				//std::cout << "Doing block " << block->DEBUG_id << std::endl;
 				lock.unlock();
 
@@ -193,7 +194,7 @@ void Composition::update_rendered(Time focus) {
 	{ //re-make pending list:
 		std::vector< std::shared_ptr< Composition::RenderBlock > > new_pending;
 		for (auto &[ block, ptr ] : rendered) {
-			if (ptr->dirty) {
+			if (ptr->pending) {
 				//static uint32_t fresh_id = 1;
 				//ptr->DEBUG_id = fresh_id++;
 				new_pending.emplace_back(ptr);

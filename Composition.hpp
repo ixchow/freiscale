@@ -156,8 +156,11 @@ struct Composition {
 		int32_t start_sample = 0;
 		std::vector< std::shared_ptr< Trigger > > triggers; //triggers assigned to this block for rendering (used to check/set dirty)
 
-		//if true, don't use samples/spectrum (might be in use by render thread):
+		//if true, has not yet been rendered (so don't use samples/spectrum):
 		bool dirty = true;
+
+		//if false, has been dequeued by a render thread (no need to re-add to pending queue):
+		bool pending = true;
 
 		//empty unless block is freshly rendered:
 		std::vector< Sample > samples;
