@@ -12,6 +12,7 @@
 #include <cassert>
 #include <iostream>
 #include <set>
+#include <array>
 
 //sample rate:
 constexpr uint32_t SampleRate = 48000;
